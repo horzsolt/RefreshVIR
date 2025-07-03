@@ -7,7 +7,6 @@ namespace RefreshVIR
     public partial class MainForm : Form
     {
         string connectionString = $"Server={Environment.GetEnvironmentVariable("VIR_SQL_SERVER_NAME")};" +
-                          //$"Database={Environment.GetEnvironmentVariable("VIR_SQL_DATABASE")};" +
                           $"Database=qad;" +
                           $"User Id={Environment.GetEnvironmentVariable("VIR_SQL_USER")};" +
                           $"Password={Environment.GetEnvironmentVariable("VIR_SQL_PASSWORD")};" +
