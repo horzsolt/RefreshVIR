@@ -16,6 +16,7 @@ namespace RefreshVIR
         public MainForm()
         {
             InitializeComponent();
+            this.StartPosition = FormStartPosition.CenterScreen;
         }
 
         private async void btnRefreshGL_Click(object sender, EventArgs e)
@@ -44,18 +45,23 @@ namespace RefreshVIR
                 await Task.Run(() => ExecuteStoredProcedure("sp_Refresh_General_Ledger"));
 
                 stopwatch.Stop();
-                MessageBox.Show($"A kiválasztott frissítés sikeresen lefutott {stopwatch.Elapsed.TotalSeconds:F2} mp alatt.",
+                TimeSpan elapsed = stopwatch.Elapsed;
+
+                this.Cursor = Cursors.Default;
+                progressBar1.Visible = false;
+
+                MessageBox.Show($"A kiválasztott frissítés sikeresen lefutott {elapsed.Minutes:D2}:{elapsed.Seconds:D2} perc alatt.",
                                 "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
+                this.Cursor = Cursors.Default;
+                progressBar1.Visible = false;
                 stopwatch.Stop();
                 MessageBox.Show($"Hiba történt:\n\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                this.Cursor = Cursors.Default;
-                progressBar1.Visible = false;
                 EnableButtons();
             }
         }
