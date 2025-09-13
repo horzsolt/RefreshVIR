@@ -11,6 +11,7 @@ namespace RefreshVIR
                           $"User Id={Environment.GetEnvironmentVariable("VIR_SQL_USER")};" +
                           $"Password={Environment.GetEnvironmentVariable("VIR_SQL_PASSWORD")};" +
                           "Connection Timeout=500;Trust Server Certificate=true";
+
         Dictionary<string, string> jobs = new Dictionary<string, string>
             {
                 { "QAD_GL_frissites", "Fõkönyv teljes frissítés" },
@@ -27,6 +28,10 @@ namespace RefreshVIR
         {
             InitializeComponent();
             this.WindowState = FormWindowState.Maximized;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.Text = "Controlling vezérlõpult";
             this.StartPosition = FormStartPosition.CenterScreen;
             this.KeyPreview = true;
             this.KeyDown += MainForm_KeyDown;
@@ -43,7 +48,10 @@ namespace RefreshVIR
 
         private async void btnRefreshGL_Click(object sender, EventArgs e)
         {
-            var confirmResult = MessageBox.Show(
+            GLRefreshForm glForm = new GLRefreshForm(connectionString);
+            glForm.Show();
+
+            /*var confirmResult = MessageBox.Show(
                 "Biztosan elindítod a fõkönyv frissítését?",
                 "Frissítés megerõsítése",
             MessageBoxButtons.YesNo,
@@ -86,6 +94,7 @@ namespace RefreshVIR
             {
                 EnableButtons();
             }
+            */
         }
 
         private void EnableButtons()

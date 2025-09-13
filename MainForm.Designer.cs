@@ -50,7 +50,7 @@
             // 
             // btnExit
             // 
-            btnExit.Location = new Point(308, 38);
+            btnExit.Location = new Point(313, 38);
             btnExit.Margin = new Padding(3, 4, 3, 4);
             btnExit.Name = "btnExit";
             btnExit.Size = new Size(120, 50);
@@ -91,7 +91,7 @@
             Controls.Add(btnRefreshGL);
             Margin = new Padding(3, 4, 3, 4);
             Name = "MainForm";
-            Text = "VIR adatfrissítő";
+            Text = "Controlling vezérlőpult";
             ResumeLayout(false);
         }
 

@@ -20,7 +20,10 @@ namespace RefreshVIR
             this.jobs = jobNames;
 
             this.WindowState = FormWindowState.Maximized;
-            this.Text = "SQL Server Agent Job Monitor";
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.Text = "Frissítő jobok státusza";
 
             this.KeyPreview = true;
             this.KeyDown += JobStatusForm_KeyDown;
