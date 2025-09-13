@@ -60,7 +60,7 @@ namespace RefreshVIR
         }
 
 
-        public static DataTable GetStoredProcExecutionDetails(string jobName, string connectionString)
+        public static DataTable GetStoredProcExecutionDetails(string jobName, string connectionString, int historyDays)
         {
             DataTable dt = new DataTable();
             dt.Columns.Add("Utoljára futtatva");
@@ -88,7 +88,7 @@ namespace RefreshVIR
                         nextSchedule = (DateTime)result;
                 }
 
-                // --- Get average runtime (last 7 days) ---
+                // --- Get average runtime
                 double avgSeconds = 0;
                 using (SqlCommand cmdAvg = new SqlCommand(@"
             SELECT AVG(run_duration)
@@ -96,7 +96,7 @@ namespace RefreshVIR
             JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
             WHERE j.name = @JobName
               AND h.step_id = 0
-              AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -7, GETDATE())", conn))
+              AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -" + historyDays +", GETDATE())", conn))
                 {
                     cmdAvg.Parameters.AddWithValue("@JobName", jobName);
                     object result = cmdAvg.ExecuteScalar();
@@ -114,8 +114,7 @@ namespace RefreshVIR
             JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
             WHERE j.name = @JobName
               AND h.step_id = 0
-              AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -7, GETDATE())
-            ORDER BY h.run_date DESC, h.run_time DESC", conn))
+              AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -" + historyDays + ", GETDATE()) ORDER BY h.run_date DESC, h.run_time DESC", conn))
                 {
                     cmdHist.Parameters.AddWithValue("@JobName", jobName);
 
@@ -159,7 +158,7 @@ namespace RefreshVIR
             return dt;
         }
 
-            public static DataTable GetJobDetails(string connectionString, Dictionary<string, string> jobs)
+            public static DataTable GetJobDetails(string connectionString, Dictionary<string, string> jobs, int historyDays)
             {
                 DataTable dt = new DataTable();
                 dt.Columns.Add("Frissítés neve");                 // 0
@@ -253,14 +252,14 @@ namespace RefreshVIR
                             }
                         }
 
-                        // --- Get average runtime (last 7 days) ---
+                        // --- Get average runtime
                         using (SqlCommand cmd = new SqlCommand(@"
                     SELECT AVG(run_duration)
                     FROM msdb.dbo.sysjobs j
                     JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
                     WHERE j.name = @JobName
                       AND h.step_id = 0
-                      AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -7, GETDATE())", conn))
+                      AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -"+ historyDays + ", GETDATE())", conn))
                         {
                             cmd.Parameters.AddWithValue("@JobName", jobName);
 

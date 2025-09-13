@@ -145,7 +145,7 @@ namespace RefreshVIR
             try
             {
                 this.UseWaitCursor = true;
-                DataTable dt = SQLUtils.GetStoredProcExecutionDetails(spName, connectionString);
+                DataTable dt = SQLUtils.GetStoredProcExecutionDetails(spName, connectionString, 14);
                 grid.DataSource = dt;
 
                 // Header formatting

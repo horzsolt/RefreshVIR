@@ -60,7 +60,7 @@ namespace RefreshVIR
             try
             {
                 Cursor.Current = Cursors.WaitCursor;
-                DataTable dt = SQLUtils.GetJobDetails(connectionString, jobs);
+                DataTable dt = SQLUtils.GetJobDetails(connectionString, jobs, 14);
                 grid.DataSource = dt;
                 grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 grid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
