@@ -34,6 +34,7 @@
             btnRefreshGL = new Button();
             btnExit = new Button();
             progressBar1 = new ProgressBar();
+            button1 = new Button();
             SuspendLayout();
             // 
             // btnRefreshGL
@@ -49,7 +50,7 @@
             // 
             // btnExit
             // 
-            btnExit.Location = new Point(170, 38);
+            btnExit.Location = new Point(308, 38);
             btnExit.Margin = new Padding(3, 4, 3, 4);
             btnExit.Name = "btnExit";
             btnExit.Size = new Size(120, 50);
@@ -69,11 +70,22 @@
             progressBar1.TabIndex = 2;
             progressBar1.Visible = false;
             // 
+            // button1
+            // 
+            button1.Location = new Point(172, 38);
+            button1.Name = "button1";
+            button1.Size = new Size(118, 50);
+            button1.TabIndex = 3;
+            button1.Text = "Státusz";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(320, 175);
+            ClientSize = new Size(611, 337);
+            Controls.Add(button1);
             Controls.Add(progressBar1);
             Controls.Add(btnExit);
             Controls.Add(btnRefreshGL);
@@ -84,5 +96,7 @@
         }
 
         #endregion
+
+        private Button button1;
     }
 }
