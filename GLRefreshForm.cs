@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Windows.Forms;
 
 namespace RefreshVIR
 {
@@ -147,6 +148,11 @@ namespace RefreshVIR
                 this.UseWaitCursor = true;
                 DataTable dt = SQLUtils.GetStoredProcExecutionDetails(spName, connectionString, 14);
                 grid.DataSource = dt;
+
+                grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+                grid.MultiSelect = false;
+                grid.DefaultCellStyle.SelectionBackColor = Color.LightBlue;
+                grid.DefaultCellStyle.SelectionForeColor = Color.Black;
 
                 // Header formatting
                 grid.EnableHeadersVisualStyles = false;

@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RefreshVIR", "RefreshVIR.cs
 EndProject
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "RefreshVIRInstaller", "..\RefreshVIRInstaller\RefreshVIRInstaller.vdproj", "{CA8E5B23-D73A-421B-A657-19B167E63DC8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnvSetter", "..\EnvSetter\EnvSetter.csproj", "{E38A30A4-9B55-4242-BF34-5B139A551069}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,8 +21,15 @@ Global
 		{A85D7B6B-B4EC-4852-9CA1-1BDA8CE5CD1E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CA8E5B23-D73A-421B-A657-19B167E63DC8}.Debug|Any CPU.ActiveCfg = Debug
 		{CA8E5B23-D73A-421B-A657-19B167E63DC8}.Release|Any CPU.ActiveCfg = Release
+		{E38A30A4-9B55-4242-BF34-5B139A551069}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E38A30A4-9B55-4242-BF34-5B139A551069}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E38A30A4-9B55-4242-BF34-5B139A551069}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E38A30A4-9B55-4242-BF34-5B139A551069}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C3F9901C-D7FA-4C41-A018-447BDBF4CA30}
 	EndGlobalSection
 EndGlobal

@@ -43,6 +43,11 @@ namespace RefreshVIR
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
             };
 
+            grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            grid.MultiSelect = false;
+            grid.DefaultCellStyle.SelectionBackColor = Color.LightBlue;
+            grid.DefaultCellStyle.SelectionForeColor = Color.Black;
+
             grid.AllowUserToAddRows = false;
             grid.EnableHeadersVisualStyles = false;
             grid.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.LightGray;
