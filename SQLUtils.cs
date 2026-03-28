@@ -96,7 +96,7 @@ namespace RefreshVIR
             JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
             WHERE j.name = @JobName
               AND h.step_id = 0
-              AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -" + historyDays +", GETDATE())", conn))
+              AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -" + historyDays + ", GETDATE())", conn))
                 {
                     cmdAvg.Parameters.AddWithValue("@JobName", jobName);
                     object result = cmdAvg.ExecuteScalar();
@@ -158,33 +158,190 @@ namespace RefreshVIR
             return dt;
         }
 
-            public static DataTable GetJobDetails(string connectionString, Dictionary<string, string> jobs, int historyDays)
+        public static DataTable GetJobDetails(
+            string connectionString,
+            Dictionary<string, string> jobs,
+            int historyDays)
+        {
+            DataTable dt = new DataTable();
+
+            dt.Columns.Add("Frissítés neve");
+            dt.Columns.Add("Utoljára futott");
+            dt.Columns.Add("Következő futás");
+            dt.Columns.Add("Utolsó futás időtartama (min)");
+            dt.Columns.Add("Átlagos futási idő (min)");
+            dt.Columns.Add("Utolsó futás státusza");
+
+            using (SqlConnection conn = new SqlConnection(connectionString))
             {
-                DataTable dt = new DataTable();
-                dt.Columns.Add("Frissítés neve");                 // 0
-                dt.Columns.Add("Utoljára futott");                // 1
-                dt.Columns.Add("Következő futás");                // 2
-                dt.Columns.Add("Utolsó futás időtartama (min)");  // 3
-                dt.Columns.Add("Átlagos futási idő (min)");       // 4
-                dt.Columns.Add("Utolsó futás státusza");          // 5
+                conn.Open();
 
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                foreach (var kvp in jobs)
                 {
-                    conn.Open();
+                    string jobName = kvp.Key;
+                    string displayName = string.IsNullOrWhiteSpace(kvp.Value) ? jobName : kvp.Value;
 
-                    foreach (var kvp in jobs)
+                    string nextSchedule = "";
+                    string lastStatus = "";
+                    string lastExecutionTime = "";
+
+                    double lastExecutionSeconds = 0;
+                    double avgRuntimeSeconds = 0;
+
+                    // -----------------------------------------
+                    // LAST RUN + STATUS + NEXT RUN
+                    // -----------------------------------------
+                    using (SqlCommand cmd = new SqlCommand(@"
+                SELECT 
+                    ja.next_scheduled_run_date,
+                    h.run_status,
+                    h.run_date,
+                    h.run_time,
+                    h.run_duration
+                FROM msdb.dbo.sysjobs j
+                LEFT JOIN msdb.dbo.sysjobactivity ja 
+                    ON j.job_id = ja.job_id
+                   AND ja.session_id = (SELECT MAX(session_id) FROM msdb.dbo.sysjobactivity)
+                OUTER APPLY (
+                    SELECT TOP 1 * 
+                    FROM msdb.dbo.sysjobhistory h
+                    WHERE h.job_id = j.job_id
+                      AND h.step_id = 0
+                    ORDER BY h.run_date DESC, h.run_time DESC
+                ) h
+                WHERE j.name = @JobName", conn))
                     {
-                        string jobName = kvp.Key;
-                        string displayName = string.IsNullOrWhiteSpace(kvp.Value) ? jobName : kvp.Value;
+                        cmd.Parameters.AddWithValue("@JobName", jobName);
 
-                        string nextSchedule = "";
-                        string lastStatus = "";
-                        double avgRuntime = 0;
-                        string lastExecutionTime = "";
-                        double lastExecutionDuration = 0;
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                // next run
+                                if (reader["next_scheduled_run_date"] != DBNull.Value)
+                                {
+                                    DateTime next = (DateTime)reader["next_scheduled_run_date"];
+                                    nextSchedule = next.ToString("yyyy-MM-dd HH:mm");
+                                }
 
-                        // --- Get schedule + last run ---
-                        using (SqlCommand cmd = new SqlCommand(@"
+                                // status
+                                if (reader["run_status"] != DBNull.Value)
+                                {
+                                    int status = Convert.ToInt32(reader["run_status"]);
+                                    lastStatus = status switch
+                                    {
+                                        0 => "Failed",
+                                        1 => "Succeeded",
+                                        2 => "Retry",
+                                        3 => "Canceled",
+                                        4 => "In Progress",
+                                        _ => "Unknown"
+                                    };
+                                }
+
+                                // last run time
+                                if (reader["run_date"] != DBNull.Value && reader["run_time"] != DBNull.Value)
+                                {
+                                    int runDate = Convert.ToInt32(reader["run_date"]);
+                                    int runTime = Convert.ToInt32(reader["run_time"]);
+
+                                    string dtStr = runDate.ToString() + runTime.ToString("D6");
+
+                                    DateTime lastExec = DateTime.ParseExact(
+                                        dtStr,
+                                        "yyyyMMddHHmmss",
+                                        null);
+
+                                    lastExecutionTime = lastExec.ToString("yyyy-MM-dd HH:mm:ss");
+                                }
+
+                                // duration HHMMSS → seconds
+                                if (reader["run_duration"] != DBNull.Value)
+                                {
+                                    int dur = Convert.ToInt32(reader["run_duration"]);
+
+                                    int hh = dur / 10000;
+                                    int mm = (dur / 100) % 100;
+                                    int ss = dur % 100;
+
+                                    lastExecutionSeconds = (hh * 3600) + (mm * 60) + ss;
+                                }
+                            }
+                        }
+                    }
+
+                    using (SqlCommand cmd = new SqlCommand(@"
+    SELECT AVG(CAST(DurationSeconds AS FLOAT))
+    FROM (
+        SELECT
+            (
+                (h.run_duration / 10000) * 3600 +
+                ((h.run_duration / 100) % 100) * 60 +
+                (h.run_duration % 100)
+            ) AS DurationSeconds
+        FROM msdb.dbo.sysjobs j
+        JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
+        WHERE j.name = @JobName
+          AND h.step_id = 0
+          AND msdb.dbo.agent_datetime(h.run_date, h.run_time)
+              > DATEADD(DAY, -@HistoryDays, GETDATE())
+    ) x", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@JobName", jobName);
+                        cmd.Parameters.AddWithValue("@HistoryDays", historyDays);
+
+                        object result = cmd.ExecuteScalar();
+
+                        if (result != DBNull.Value && result != null)
+                        {
+                            avgRuntimeSeconds = Convert.ToDouble(result);
+                        }
+                    }
+
+                    // -----------------------------------------
+                    // OUTPUT
+                    // -----------------------------------------
+                    dt.Rows.Add(
+                        displayName,
+                        lastExecutionTime,
+                        nextSchedule,
+                        TimeSpan.FromSeconds(lastExecutionSeconds).ToString(@"hh\:mm\:ss"),
+                        TimeSpan.FromSeconds(avgRuntimeSeconds).ToString(@"hh\:mm\:ss"),
+                        lastStatus
+                    );
+                }
+            }
+
+            return dt;
+        }
+
+        public static DataTable _GetJobDetails(string connectionString, Dictionary<string, string> jobs, int historyDays)
+        {
+            DataTable dt = new DataTable();
+            dt.Columns.Add("Frissítés neve");                 // 0
+            dt.Columns.Add("Utoljára futott");                // 1
+            dt.Columns.Add("Következő futás");                // 2
+            dt.Columns.Add("Utolsó futás időtartama (min)");  // 3
+            dt.Columns.Add("Átlagos futási idő (min)");       // 4
+            dt.Columns.Add("Utolsó futás státusza");          // 5
+
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+
+                foreach (var kvp in jobs)
+                {
+                    string jobName = kvp.Key;
+                    string displayName = string.IsNullOrWhiteSpace(kvp.Value) ? jobName : kvp.Value;
+
+                    string nextSchedule = "";
+                    string lastStatus = "";
+                    double avgRuntime = 0;
+                    string lastExecutionTime = "";
+                    double lastExecutionDuration = 0;
+
+                    // --- Get schedule + last run ---
+                    using (SqlCommand cmd = new SqlCommand(@"
                     SELECT 
                         ja.next_scheduled_run_date,
                         h.run_status,
@@ -202,86 +359,86 @@ namespace RefreshVIR
                         ORDER BY h.run_date DESC, h.run_time DESC
                     ) h
                     WHERE j.name = @JobName", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@JobName", jobName);
+
+                        using (SqlDataReader reader = cmd.ExecuteReader())
                         {
-                            cmd.Parameters.AddWithValue("@JobName", jobName);
-
-                            using (SqlDataReader reader = cmd.ExecuteReader())
+                            if (reader.Read())
                             {
-                                if (reader.Read())
+                                if (reader["next_scheduled_run_date"] != DBNull.Value)
                                 {
-                                    if (reader["next_scheduled_run_date"] != DBNull.Value)
-                                    {
-                                        DateTime next = (DateTime)reader["next_scheduled_run_date"];
-                                        nextSchedule = next.ToString("yyyy-MM-dd HH:mm");
-                                    }
+                                    DateTime next = (DateTime)reader["next_scheduled_run_date"];
+                                    nextSchedule = next.ToString("yyyy-MM-dd HH:mm");
+                                }
 
-                                    if (reader["run_status"] != DBNull.Value)
+                                if (reader["run_status"] != DBNull.Value)
+                                {
+                                    int status = Convert.ToInt32(reader["run_status"]);
+                                    lastStatus = status switch
                                     {
-                                        int status = Convert.ToInt32(reader["run_status"]);
-                                        lastStatus = status switch
-                                        {
-                                            0 => "Failed",
-                                            1 => "Succeeded",
-                                            2 => "Retry",
-                                            3 => "Canceled",
-                                            4 => "In Progress",
-                                            _ => "Unknown"
-                                        };
-                                    }
+                                        0 => "Failed",
+                                        1 => "Succeeded",
+                                        2 => "Retry",
+                                        3 => "Canceled",
+                                        4 => "In Progress",
+                                        _ => "Unknown"
+                                    };
+                                }
 
-                                    if (reader["run_date"] != DBNull.Value && reader["run_time"] != DBNull.Value)
-                                    {
-                                        int runDate = Convert.ToInt32(reader["run_date"]);
-                                        int runTime = Convert.ToInt32(reader["run_time"]);
-                                        string runDateStr = runDate.ToString();
-                                        string runTimeStr = runTime.ToString("D6");
-                                        DateTime lastExec = DateTime.ParseExact(runDateStr + runTimeStr, "yyyyMMddHHmmss", null);
-                                        lastExecutionTime = lastExec.ToString("yyyy-MM-dd HH:mm:ss");
-                                    }
+                                if (reader["run_date"] != DBNull.Value && reader["run_time"] != DBNull.Value)
+                                {
+                                    int runDate = Convert.ToInt32(reader["run_date"]);
+                                    int runTime = Convert.ToInt32(reader["run_time"]);
+                                    string runDateStr = runDate.ToString();
+                                    string runTimeStr = runTime.ToString("D6");
+                                    DateTime lastExec = DateTime.ParseExact(runDateStr + runTimeStr, "yyyyMMddHHmmss", null);
+                                    lastExecutionTime = lastExec.ToString("yyyy-MM-dd HH:mm:ss");
+                                }
 
-                                    if (reader["run_duration"] != DBNull.Value)
-                                    {
-                                        int dur = Convert.ToInt32(reader["run_duration"]);
-                                        int hh = dur / 10000;
-                                        int mm = (dur % 10000) / 100;
-                                        int ss = dur % 100;
-                                        int totalSeconds = hh * 3600 + mm * 60 + ss;
-                                        lastExecutionDuration = totalSeconds;
-                                    }
+                                if (reader["run_duration"] != DBNull.Value)
+                                {
+                                    int dur = Convert.ToInt32(reader["run_duration"]);
+                                    int hh = dur / 10000;
+                                    int mm = (dur % 10000) / 100;
+                                    int ss = dur % 100;
+                                    int totalSeconds = hh * 3600 + mm * 60 + ss;
+                                    lastExecutionDuration = totalSeconds;
                                 }
                             }
                         }
+                    }
 
-                        // --- Get average runtime
-                        using (SqlCommand cmd = new SqlCommand(@"
+                    // --- Get average runtime
+                    using (SqlCommand cmd = new SqlCommand(@"
                     SELECT AVG(run_duration)
                     FROM msdb.dbo.sysjobs j
                     JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
                     WHERE j.name = @JobName
                       AND h.step_id = 0
-                      AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -"+ historyDays + ", GETDATE())", conn))
-                        {
-                            cmd.Parameters.AddWithValue("@JobName", jobName);
+                      AND msdb.dbo.agent_datetime(h.run_date, h.run_time) > DATEADD(DAY, -" + historyDays + ", GETDATE())", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@JobName", jobName);
 
-                            object result = cmd.ExecuteScalar();
-                            if (result != DBNull.Value && result != null)
+                        object result = cmd.ExecuteScalar();
+                        if (result != DBNull.Value && result != null)
                             avgRuntime = ConvertDurationToSeconds(Convert.ToInt32(result));
                     }
 
-                        // --- Add row in the correct column order ---
-                        dt.Rows.Add(
-                            displayName,
-                            lastExecutionTime,
-                            nextSchedule,
-                            TimeSpan.FromSeconds(lastExecutionDuration).ToString(@"mm\:ss"),
-                            TimeSpan.FromSeconds(avgRuntime).ToString(@"mm\:ss"),
-                            lastStatus
-                        );
-                    }
+                    // --- Add row in the correct column order ---
+                    dt.Rows.Add(
+                        displayName,
+                        lastExecutionTime,
+                        nextSchedule,
+                        TimeSpan.FromSeconds(lastExecutionDuration).ToString(@"mm\:ss"),
+                        TimeSpan.FromSeconds(avgRuntime).ToString(@"mm\:ss"),
+                        lastStatus
+                    );
                 }
-
-                return dt;
             }
+
+            return dt;
+        }
 
         private static double ConvertDurationToSeconds(int runDuration)
         {

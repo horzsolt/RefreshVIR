@@ -16,7 +16,7 @@ namespace RefreshVIR
 
         public static Dictionary<string, string> jobs = new Dictionary<string, string>
             {
-                { "QAD_GL_frissites", "Főkönyv teljes frissítés" },
+                { "QAD_GL_hajnali_frissites", "Főkönyv teljes frissítés" },
                 { "QAD_GL_INC_frissites", "Főkönyv növekményes frissítés" },
                 { "QAD_VIR_2025_ejszakai_frissites", "QAD 2025 frissítés 1." },
                 { "QAD_VIR_2025_ejszakai_frissites_2", "QAD 2025 frissítés 2." },
@@ -25,9 +25,10 @@ namespace RefreshVIR
                 { "Refresh_Scriptor_2", "Scriptor frissítés 2." },
                 { "Refresh_Scriptor_3", "Scriptor frissítés 3." },
                 { "Refresh_Scriptor_4", "Scriptor frissítés 4." },
-                { "QAD_VIR_2025_ejszakai_frissites", "QAD 2025 frissítés 1." },
-                { "QAD_VIR_2025_ejszakai_frissites_2", "QAD 2025 frissítés 2." },
-                { "QAD_VIR_2025_ejszakai_frissites_3", "QAD 2025 frissítés 3." },
+                { "QAD_VIR_2026_frissites", "QAD 2026 frissítés 1." },
+                { "QAD_VIR_2026_frissites_2", "QAD 2026 frissítés 2." },
+                { "QAD_VIR_2026_frissites_3", "QAD 2026 frissítés 3." },
+                { "QAD_VIR_ejszakai_frissites", "QAD VIR teljes, ejszakai frissítés 3." }
             };
     }
 }
