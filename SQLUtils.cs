@@ -42,7 +42,7 @@ namespace RefreshVIR
                     }
                 }
 
-                MessageBox.Show($"Job '{jobName}' indítása elindítva.", "Info");
+                MessageBox.Show($"Job '{jobName}' elindítva.", "Info");
             }
             catch (SqlException ex)
             {
