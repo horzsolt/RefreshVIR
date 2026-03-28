@@ -10,7 +10,6 @@ namespace RefreshVIR
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.Text = "Controlling vezérlõpult";
             this.StartPosition = FormStartPosition.CenterScreen;
             this.KeyPreview = true;
             this.KeyDown += MainForm_KeyDown;

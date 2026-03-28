@@ -50,7 +50,7 @@
             this.WindowState = FormWindowState.Maximized;
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Text = "Controlling vezérlőpult";
+            this.Text = Environment.UserDomainName + "-" + Environment.UserName;
             this.KeyPreview = true;
 
             // 
