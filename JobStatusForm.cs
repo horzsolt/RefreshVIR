@@ -1,7 +1,4 @@
-﻿using Microsoft.Data.SqlClient;
-using System;
-using System.Data;
-
+﻿using System.Data;
 
 namespace RefreshVIR
 {
@@ -53,6 +50,7 @@ namespace RefreshVIR
             grid.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.LightGray;
             grid.ColumnHeadersDefaultCellStyle.Font = new System.Drawing.Font(grid.Font, System.Drawing.FontStyle.Bold);
             grid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.CellClick += Grid_CellClick;
 
             Controls.Add(grid);
             Controls.Add(closeButton);
@@ -65,10 +63,84 @@ namespace RefreshVIR
             try
             {
                 Cursor.Current = Cursors.WaitCursor;
+
                 DataTable dt = SQLUtils.GetJobDetails(connectionString, jobs, 14);
                 grid.DataSource = dt;
                 grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 grid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+                var btnCol = new DataGridViewButtonColumn
+                {
+                    Name = "Action",
+                    HeaderText = "Művelet",
+                    Text = "Stopp",
+                    UseColumnTextForButtonValue = false
+                };
+
+                grid.Columns.Add(btnCol);
+                UpdateButtons();
+            }
+            finally
+            {
+                Cursor.Current = Cursors.Default;
+            }
+        }
+
+        private void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            if (grid.Columns[e.ColumnIndex].Name == "Action")
+            {
+                string jobName = grid.Rows[e.RowIndex].Cells["Job neve"].Value.ToString();
+                string status = grid.Rows[e.RowIndex].Cells["Jelenlegi státusz"].Value?.ToString();
+
+                bool isRunning = status == "Running";
+
+                string actionText = isRunning ? "leállítani" : "elindítani";
+                string actionTitle = isRunning ? "Job leállítása" : "Job indítása";
+
+                var result = MessageBox.Show(
+                    $"Biztosan szeretnéd {actionText} ezt a jobot?\n\n{jobName}",
+                    actionTitle,
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (result != DialogResult.Yes)
+                    return;
+
+                if (isRunning)
+                {
+                    SQLUtils.StopJob(jobName, connectionString);
+                }
+                else
+                {
+                    SQLUtils.StartJob(jobName, connectionString);
+                }
+
+                RefreshGrid();
+            }
+        }
+
+        private void UpdateButtons()
+        {
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                var status = row.Cells["Jelenlegi státusz"].Value?.ToString();
+
+                row.Cells["Action"].Value =
+                    status == "Running" ? "Stop" : "Start";
+            }
+        }
+
+        private void RefreshGrid()
+        {
+            Cursor.Current = Cursors.WaitCursor;
+
+            try
+            {
+                grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, 14);
+                UpdateButtons();
             }
             finally
             {

@@ -24,6 +24,71 @@ namespace RefreshVIR
             }
         }
 
+
+        public static void StartJob(string jobName, string connectionString)
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+
+                    using (SqlCommand cmd = new SqlCommand("msdb.dbo.sp_start_job", conn))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
+                        cmd.Parameters.AddWithValue("@job_name", jobName);
+
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+
+                MessageBox.Show($"Job '{jobName}' indítása elindítva.", "Info");
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(ex.Message, "SQL hiba", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        public static void StopJob(string jobName, string connectionString)
+        {
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+
+                using (SqlCommand cmd = new SqlCommand("msdb.dbo.sp_stop_job", conn))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@job_name", jobName);
+
+                    try
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                    catch (SqlException ex)
+                    {
+                        if (ex.Message.Contains("not currently running"))
+                        {
+                            MessageBox.Show(
+                                $"A(z) '{jobName}' job nem fut jelenleg.",
+                                "Információ",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            // Unknown SQL error → show original
+                            MessageBox.Show(
+                                ex.Message,
+                                "SQL hiba",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error);
+                        }
+                    }
+                }
+            }
+        }
+
         public static bool IsJobRunning(string jobName, string connectionString)
         {
             using (SqlConnection conn = new SqlConnection(connectionString))
@@ -165,12 +230,14 @@ namespace RefreshVIR
         {
             DataTable dt = new DataTable();
 
+            dt.Columns.Add("Job neve");
             dt.Columns.Add("Frissítés neve");
             dt.Columns.Add("Utoljára futott");
             dt.Columns.Add("Következő futás");
             dt.Columns.Add("Utolsó futás időtartama (min)");
             dt.Columns.Add("Átlagos futási idő (min)");
             dt.Columns.Add("Utolsó futás státusza");
+            dt.Columns.Add("Jelenlegi státusz");
 
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
@@ -188,12 +255,16 @@ namespace RefreshVIR
                     double lastExecutionSeconds = 0;
                     double avgRuntimeSeconds = 0;
 
+                    string currentStatus = "Idle";
+
                     // -----------------------------------------
                     // LAST RUN + STATUS + NEXT RUN
                     // -----------------------------------------
                     using (SqlCommand cmd = new SqlCommand(@"
                 SELECT 
                     ja.next_scheduled_run_date,
+                    ja.start_execution_date,
+                    ja.stop_execution_date,
                     h.run_status,
                     h.run_date,
                     h.run_time,
@@ -217,6 +288,7 @@ namespace RefreshVIR
                         {
                             if (reader.Read())
                             {
+
                                 // next run
                                 if (reader["next_scheduled_run_date"] != DBNull.Value)
                                 {
@@ -237,6 +309,12 @@ namespace RefreshVIR
                                         4 => "In Progress",
                                         _ => "Unknown"
                                     };
+                                }
+
+                                if (reader["start_execution_date"] != DBNull.Value &&
+                                    reader["stop_execution_date"] == DBNull.Value)
+                                {
+                                    currentStatus = "Running";
                                 }
 
                                 // last run time
@@ -302,12 +380,14 @@ namespace RefreshVIR
                     // OUTPUT
                     // -----------------------------------------
                     dt.Rows.Add(
+                        jobName,
                         displayName,
                         lastExecutionTime,
                         nextSchedule,
                         TimeSpan.FromSeconds(lastExecutionSeconds).ToString(@"hh\:mm\:ss"),
                         TimeSpan.FromSeconds(avgRuntimeSeconds).ToString(@"hh\:mm\:ss"),
-                        lastStatus
+                        lastStatus,
+                        currentStatus
                     );
                 }
             }
