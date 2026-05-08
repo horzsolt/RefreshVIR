@@ -1,4 +1,6 @@
-﻿namespace RefreshVIR
+﻿using static System.Windows.Forms.Button;
+
+namespace RefreshVIR
 {
     partial class MainForm
     {
@@ -11,6 +13,7 @@
         private System.Windows.Forms.ProgressBar progressBar1;
         private System.Windows.Forms.TableLayoutPanel mainLayout;
         private System.Windows.Forms.Label titleLabel;
+        private System.Windows.Forms.ToolTip toolTip = new System.Windows.Forms.ToolTip();
 
         /// <summary>
         ///  Clean up any resources being used.
@@ -73,7 +76,9 @@
             this.btnRefreshGL.BackColor = Color.SteelBlue;
             this.btnRefreshGL.ForeColor = Color.White;
             this.btnRefreshGL.FlatStyle = FlatStyle.Flat;
+            this.btnRefreshGL.Cursor = Cursors.Hand;
             this.btnRefreshGL.Click += btnRefreshGL_Click;
+            toolTip.SetToolTip(this.btnRefreshGL, "Főkönyvi adatok kézi frissítése, jobok státusza");
 
             // 
             // button1 (Status)
@@ -85,7 +90,9 @@
             this.button1.BackColor = Color.DarkSlateGray;
             this.button1.ForeColor = Color.White;
             this.button1.FlatStyle = FlatStyle.Flat;
+            this.button1.Cursor = Cursors.Hand;
             this.button1.Click += button1_Click;
+            toolTip.SetToolTip(this.button1, "Összes adatfrissítő job státusza, indítás, leállítás");
 
             // 
             // btnExit
@@ -97,6 +104,7 @@
             this.btnExit.BackColor = Color.Firebrick;
             this.btnExit.ForeColor = Color.White;
             this.btnExit.FlatStyle = FlatStyle.Flat;
+            this.btnExit.Cursor = Cursors.Hand;
             this.btnExit.Click += btnExit_Click;
 
             // 

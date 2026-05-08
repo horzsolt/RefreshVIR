@@ -33,6 +33,14 @@ namespace RefreshVIR
             };
             closeButton.Click += (s, e) => this.Close();
 
+            Button refreshButton = new Button
+            {
+                Text = "Frissítés",
+                Dock = DockStyle.Top,
+                Height = 40
+            };
+            refreshButton.Click += (s, e) => this.RefreshGrid();
+
             grid = new DataGridView
             {
                 Dock = DockStyle.Fill,
@@ -54,6 +62,7 @@ namespace RefreshVIR
 
             Controls.Add(grid);
             Controls.Add(closeButton);
+            Controls.Add(refreshButton);
 
             Load += JobStatusForm_Load;
         }
@@ -66,8 +75,22 @@ namespace RefreshVIR
 
                 DataTable dt = SQLUtils.GetJobDetails(connectionString, jobs, 14);
                 grid.DataSource = dt;
+
+                grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 grid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                grid.Columns[5].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                grid.Columns[8].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+                grid.Columns[0].Width = 300;
+
+                foreach (DataGridViewRow row in grid.Rows)
+                {
+                    if (row.Cells["Jelenlegi státusz"].Value?.ToString() == "Running")
+                    {
+                        row.DefaultCellStyle.BackColor = Color.Gold;
+                    }
+                }
 
                 var btnCol = new DataGridViewButtonColumn
                 {

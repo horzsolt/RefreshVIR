@@ -39,6 +39,7 @@ namespace RefreshVIR
             fullRadio = new RadioButton
             {
                 Text = "Teljes",
+                Checked = true,
                 Left = 10,
                 Top = 10
             };
@@ -48,7 +49,6 @@ namespace RefreshVIR
             incrementalRadio = new RadioButton
             {
                 Text = "Növekményes",
-                Checked = true,
                 Left = 150,
                 Top = 10,
                 Width = 150
@@ -95,7 +95,17 @@ namespace RefreshVIR
 
         private async void RunJobButton_Click(object sender, EventArgs e)
         {
-            string jobName = fullRadio.Checked ? "QAD_GL_frissites" : "QAD_GL_INC_frissites";
+            string jobName = fullRadio.Checked ? "QAD_GL_hajnali_frissites" : "QAD_GL_INC_frissites";
+
+            var result = MessageBox.Show(
+                $"Biztosan szeretnéd elindítani ezt a jobot?\n\n{jobName}",
+                "Job indítása",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result != DialogResult.Yes)
+                return;
+
             try
             {
                 this.UseWaitCursor = true;
@@ -141,7 +151,7 @@ namespace RefreshVIR
 
         private void LoadGrid()
         {
-            string spName = fullRadio.Checked ? "QAD_GL_frissites" : "QAD_GL_INC_frissites";
+            string spName = fullRadio.Checked ? "QAD_GL_hajnali_frissites" : "QAD_GL_INC_frissites";
 
             try
             {
