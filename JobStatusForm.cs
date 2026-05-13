@@ -8,6 +8,8 @@ namespace RefreshVIR
         private DataGridView grid;
         private string connectionString;
         private Dictionary<string, string> jobs;
+        private PictureBox timelinePictureBox;
+        private SplitContainer splitContainer;
 
         public JobStatusForm(string connectionString, Dictionary<string, string> jobNames)
         {
@@ -55,12 +57,53 @@ namespace RefreshVIR
 
             grid.AllowUserToAddRows = false;
             grid.EnableHeadersVisualStyles = false;
-            grid.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.LightGray;
-            grid.ColumnHeadersDefaultCellStyle.Font = new System.Drawing.Font(grid.Font, System.Drawing.FontStyle.Bold);
-            grid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.LightGray;
+            grid.ColumnHeadersDefaultCellStyle.Font =
+                new Font(grid.Font, FontStyle.Bold);
+
+            grid.ColumnHeadersDefaultCellStyle.Alignment =
+                DataGridViewContentAlignment.MiddleCenter;
+
             grid.CellClick += Grid_CellClick;
 
-            Controls.Add(grid);
+            grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            grid.Dock = DockStyle.Top;
+            grid.Height = 420;
+
+            timelinePictureBox = new PictureBox
+            {
+                BackColor = Color.White,
+                SizeMode = PictureBoxSizeMode.AutoSize,
+                Dock = DockStyle.Top
+            };
+
+            Panel timelinePanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = Color.DarkGray
+            };
+
+            timelinePanel.Controls.Add(timelinePictureBox);
+
+            splitContainer =
+                new SplitContainer
+                {
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Horizontal,
+
+                    // Top = grid
+                    // Bottom = timeline
+                    SplitterDistance = 0,
+
+                    Panel1MinSize = 150,
+                    Panel2MinSize = 150
+                };
+
+            splitContainer.Panel1.Controls.Add(grid);
+            splitContainer.Panel2.Controls.Add(timelinePanel);
+
+            Controls.Add(splitContainer);
             Controls.Add(closeButton);
             Controls.Add(refreshButton);
 
@@ -96,12 +139,15 @@ namespace RefreshVIR
                 {
                     Name = "Action",
                     HeaderText = "Művelet",
-                    Text = "Stopp",
+                    Text = "Stop",
                     UseColumnTextForButtonValue = false
                 };
 
                 grid.Columns.Add(btnCol);
                 UpdateButtons();
+
+                RefreshTimeline();
+                splitContainer.SplitterDistance = grid.Height;
             }
             finally
             {
@@ -142,6 +188,7 @@ namespace RefreshVIR
                 }
 
                 RefreshGrid();
+                UpdateButtons();
             }
         }
 
@@ -153,6 +200,11 @@ namespace RefreshVIR
 
                 row.Cells["Action"].Value =
                     status == "Running" ? "Stop" : "Start";
+
+                if (row.Cells["Jelenlegi státusz"].Value?.ToString() == "Running")
+                {
+                    row.DefaultCellStyle.BackColor = Color.Gold;
+                }
             }
         }
 
@@ -163,6 +215,18 @@ namespace RefreshVIR
             try
             {
                 grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, 14);
+
+                List<JobExecution> history =
+                    SQLUtils.GetJobExecutionHistory(
+                        connectionString,
+                        jobs);
+                Bitmap bmp =
+                    JobTimelineRenderer.CreateJobTimelineChart(history,
+                        timelinePictureBox.Width);
+
+                timelinePictureBox.Image?.Dispose();
+                timelinePictureBox.Image = bmp;
+
                 UpdateButtons();
             }
             finally
@@ -171,6 +235,19 @@ namespace RefreshVIR
             }
         }
 
+        private void RefreshTimeline()
+        {
+            List<JobExecution> history =
+                SQLUtils.GetJobExecutionHistory(
+                    connectionString,
+                    jobs);
+            Bitmap bmp =
+                JobTimelineRenderer.CreateJobTimelineChart(history,
+                    timelinePictureBox.Width);
+
+            timelinePictureBox.Image?.Dispose();
+            timelinePictureBox.Image = bmp;
+        }
         private void JobStatusForm_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape)

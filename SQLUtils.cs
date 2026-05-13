@@ -229,10 +229,11 @@ namespace RefreshVIR
 
             dt.Columns.Add("Job neve");
             dt.Columns.Add("Frissítés neve");
-            dt.Columns.Add("Utoljára futott");
+            dt.Columns.Add("Utoljára elindult");
+            dt.Columns.Add("Utoljára befejeződött");
             dt.Columns.Add("Következő futás");
             dt.Columns.Add("Utolsó futás időtartama");
-            dt.Columns.Add("Átlagos futás időtartama");
+            dt.Columns.Add("Átlagos futás időtartamaí");
             dt.Columns.Add("Utolsó futás státusza");
             dt.Columns.Add("Jelenlegi státusz");
             dt.Columns.Add("Jelenlegi futási idő");
@@ -249,6 +250,7 @@ namespace RefreshVIR
                     string nextSchedule = "";
                     string lastStatus = "";
                     string lastExecutionTime = "";
+                    string lastFinishTime = "";
 
                     double lastExecutionSeconds = 0;
                     double avgRuntimeSeconds = 0;
@@ -336,7 +338,24 @@ namespace RefreshVIR
                                         null);
 
                                     lastExecutionTime = lastExec.ToString("yyyy-MM-dd HH:mm:ss");
+
+                                    if (reader["run_duration"] != DBNull.Value)
+                                    {
+                                        int dur = Convert.ToInt32(reader["run_duration"]);
+
+                                        int hh = dur / 10000;
+                                        int mm = (dur / 100) % 100;
+                                        int ss = dur % 100;
+
+                                        DateTime finishTime = lastExec
+                                            .AddHours(hh)
+                                            .AddMinutes(mm)
+                                            .AddSeconds(ss);
+
+                                        lastFinishTime = finishTime.ToString("yyyy-MM-dd HH:mm:ss");
+                                    }
                                 }
+
 
                                 // duration HHMMSS → seconds
                                 if (reader["run_duration"] != DBNull.Value)
@@ -385,6 +404,7 @@ namespace RefreshVIR
                         jobName,
                         displayName,
                         lastExecutionTime,
+                        lastFinishTime,
                         nextSchedule,
                         FormatHungarianDuration(lastExecutionSeconds),
                         FormatHungarianDuration(avgRuntimeSeconds),
@@ -427,6 +447,94 @@ namespace RefreshVIR
             int mm = (runDuration % 10000) / 100;
             int ss = runDuration % 100;
             return hh * 3600 + mm * 60 + ss;
+        }
+
+        public static List<JobExecution> GetJobExecutionHistory(
+            string connectionString,
+            Dictionary<string, string> jobs)
+        {
+            List<JobExecution> result =
+                new List<JobExecution>();
+
+            DateTime fromTime =
+                DateTime.Today.AddDays(-1).AddHours(19);
+
+            using SqlConnection conn =
+                new SqlConnection(connectionString);
+
+            conn.Open();
+
+            foreach (var kvp in jobs)
+            {
+                string jobName = kvp.Key;
+
+                using SqlCommand cmd =
+                    new SqlCommand(@"
+SELECT
+    h.run_date,
+    h.run_time,
+    h.run_duration,
+    h.run_status
+FROM msdb.dbo.sysjobs j
+JOIN msdb.dbo.sysjobhistory h
+    ON j.job_id = h.job_id
+WHERE j.name = @JobName
+  AND h.step_id = 0
+ORDER BY h.run_date, h.run_time", conn);
+
+                cmd.Parameters.AddWithValue(
+                    "@JobName",
+                    jobName);
+
+                using SqlDataReader reader =
+                    cmd.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    int runDate =
+                        Convert.ToInt32(reader["run_date"]);
+
+                    int runTime =
+                        Convert.ToInt32(reader["run_time"]);
+
+                    int duration =
+                        Convert.ToInt32(reader["run_duration"]);
+
+                    string dtStr =
+                        runDate.ToString() +
+                        runTime.ToString("D6");
+
+                    DateTime startTime =
+                        DateTime.ParseExact(
+                            dtStr,
+                            "yyyyMMddHHmmss",
+                            null);
+
+                    if (startTime < fromTime)
+                        continue;
+
+                    int hh = duration / 10000;
+                    int mm = (duration / 100) % 100;
+                    int ss = duration % 100;
+
+                    DateTime finishTime =
+                        startTime
+                            .AddHours(hh)
+                            .AddMinutes(mm)
+                            .AddSeconds(ss);
+
+                    result.Add(new JobExecution
+                    {
+                        JobName = kvp.Value,
+                        StartTime = startTime,
+                        FinishTime = finishTime,
+                        RunStatus =
+                            Convert.ToInt32(reader["run_status"])
+                    });
+                }
+            }
+
+            return result;
         }
     }
 }
