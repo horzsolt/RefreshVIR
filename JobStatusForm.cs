@@ -9,7 +9,9 @@ namespace RefreshVIR
         private string connectionString;
         private Dictionary<string, string> jobs;
         private PictureBox timelinePictureBox;
+        private Panel timelinePanel;
         private SplitContainer splitContainer;
+        private List<JobExecution>? cachedTimelineHistory;
 
         public JobStatusForm(string connectionString, Dictionary<string, string> jobNames)
         {
@@ -73,18 +75,18 @@ namespace RefreshVIR
             timelinePictureBox = new PictureBox
             {
                 BackColor = Color.White,
-                SizeMode = PictureBoxSizeMode.AutoSize,
-                Dock = DockStyle.Top
+                SizeMode = PictureBoxSizeMode.Normal,
+                Dock = DockStyle.Fill
             };
 
-            Panel timelinePanel = new Panel
+            timelinePanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                AutoScroll = true,
                 BackColor = Color.DarkGray
             };
 
             timelinePanel.Controls.Add(timelinePictureBox);
+            timelinePanel.Resize += (s, e) => RenderTimeline();
 
             splitContainer =
                 new SplitContainer
@@ -116,43 +118,44 @@ namespace RefreshVIR
             {
                 Cursor.Current = Cursors.WaitCursor;
 
-                DataTable dt = SQLUtils.GetJobDetails(connectionString, jobs, 14);
-                grid.DataSource = dt;
-
-                grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                grid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                grid.Columns[5].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                grid.Columns[8].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-
-                grid.Columns[0].Width = 300;
-
-                foreach (DataGridViewRow row in grid.Rows)
-                {
-                    if (row.Cells["Jelenlegi státusz"].Value?.ToString() == "Running")
-                    {
-                        row.DefaultCellStyle.BackColor = Color.Gold;
-                    }
-                }
-
-                var btnCol = new DataGridViewButtonColumn
-                {
-                    Name = "Action",
-                    HeaderText = "Művelet",
-                    Text = "Stop",
-                    UseColumnTextForButtonValue = false
-                };
-
-                grid.Columns.Add(btnCol);
-                UpdateButtons();
-
-                RefreshTimeline();
+                BindGridData();
                 splitContainer.SplitterDistance = grid.Height;
+                RefreshTimeline();
             }
             finally
             {
                 Cursor.Current = Cursors.Default;
             }
+        }
+
+        private void BindGridData()
+        {
+            grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, 14);
+
+            grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.Columns[4].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.Columns[5].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.Columns[8].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+            grid.Columns[0].Width = 300;
+
+            EnsureActionColumn();
+            UpdateButtons();
+        }
+
+        private void EnsureActionColumn()
+        {
+            if (grid.Columns.Contains("Action"))
+                return;
+
+            grid.Columns.Add(new DataGridViewButtonColumn
+            {
+                Name = "Action",
+                HeaderText = "Művelet",
+                Text = "Stop",
+                UseColumnTextForButtonValue = false
+            });
         }
 
         private void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -188,7 +191,6 @@ namespace RefreshVIR
                 }
 
                 RefreshGrid();
-                UpdateButtons();
             }
         }
 
@@ -197,14 +199,10 @@ namespace RefreshVIR
             foreach (DataGridViewRow row in grid.Rows)
             {
                 var status = row.Cells["Jelenlegi státusz"].Value?.ToString();
+                bool isRunning = status == "Running";
 
-                row.Cells["Action"].Value =
-                    status == "Running" ? "Stop" : "Start";
-
-                if (row.Cells["Jelenlegi státusz"].Value?.ToString() == "Running")
-                {
-                    row.DefaultCellStyle.BackColor = Color.Gold;
-                }
+                row.Cells["Action"].Value = isRunning ? "Stop" : "Start";
+                row.DefaultCellStyle.BackColor = isRunning ? Color.Gold : Color.White;
             }
         }
 
@@ -214,20 +212,13 @@ namespace RefreshVIR
 
             try
             {
-                grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, 14);
+                BindGridData();
 
-                List<JobExecution> history =
+                cachedTimelineHistory =
                     SQLUtils.GetJobExecutionHistory(
                         connectionString,
                         jobs);
-                Bitmap bmp =
-                    JobTimelineRenderer.CreateJobTimelineChart(history,
-                        timelinePictureBox.Width);
-
-                timelinePictureBox.Image?.Dispose();
-                timelinePictureBox.Image = bmp;
-
-                UpdateButtons();
+                RenderTimeline();
             }
             finally
             {
@@ -237,13 +228,26 @@ namespace RefreshVIR
 
         private void RefreshTimeline()
         {
-            List<JobExecution> history =
+            cachedTimelineHistory =
                 SQLUtils.GetJobExecutionHistory(
                     connectionString,
                     jobs);
+            RenderTimeline();
+        }
+
+        private void RenderTimeline()
+        {
+            if (cachedTimelineHistory == null)
+                return;
+
+            int width = Math.Max(1, timelinePanel.ClientSize.Width);
+            int height = Math.Max(1, timelinePanel.ClientSize.Height);
+
             Bitmap bmp =
-                JobTimelineRenderer.CreateJobTimelineChart(history,
-                    timelinePictureBox.Width);
+                JobTimelineRenderer.CreateJobTimelineChart(
+                    cachedTimelineHistory,
+                    width,
+                    height);
 
             timelinePictureBox.Image?.Dispose();
             timelinePictureBox.Image = bmp;

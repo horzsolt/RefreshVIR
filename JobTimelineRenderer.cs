@@ -9,8 +9,12 @@ public static class JobTimelineRenderer
 {
     public static Bitmap CreateJobTimelineChart(
         List<JobExecution> jobs,
-        int width = 1800)
+        int width,
+        int height)
     {
+        width = Math.Max(1, width);
+        height = Math.Max(1, height);
+
         DateTime now = DateTime.Now;
 
         DateTime timelineStart =
@@ -30,8 +34,8 @@ public static class JobTimelineRenderer
         int topMargin = 30;
         int bottomMargin = 50;
 
-        int laneHeight = 26;   // smaller vertical spacing
-        int barHeight = 14;    // smaller bars
+        int laneHeight = 26;
+        int barHeight = 14;
 
         // -------------------------------------------------
         // Distinct jobs / lanes
@@ -55,22 +59,14 @@ public static class JobTimelineRenderer
         int laneCount =
             Math.Max(1, distinctJobs.Count);
 
-        // -------------------------------------------------
-        // Dynamic height
-        // -------------------------------------------------
-
         int paddingBottom = 30;
+        int availableChartHeight =
+            height - topMargin - bottomMargin - paddingBottom;
 
-        int chartHeight =
-            laneCount * laneHeight;
+        laneHeight = Math.Max(16, availableChartHeight / laneCount);
+        barHeight = Math.Max(8, laneHeight - 10);
 
-        int height =
-            topMargin +
-            chartHeight +
-            bottomMargin +
-            paddingBottom;
-
-        height = Math.Max(height, 300);
+        int chartHeight = laneCount * laneHeight;
 
         // -------------------------------------------------
         // Bitmap

@@ -6,12 +6,6 @@ namespace RefreshVIR
         public MainForm()
         {
             InitializeComponent();
-            this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.KeyPreview = true;
             this.KeyDown += MainForm_KeyDown;
         }
 

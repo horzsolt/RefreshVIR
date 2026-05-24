@@ -225,7 +225,6 @@ namespace RefreshVIR
             int historyDays)
         {
             DataTable dt = new DataTable();
-            string currentRunTime = "00:00:00";
 
             dt.Columns.Add("Job neve");
             dt.Columns.Add("Frissítés neve");
@@ -256,6 +255,7 @@ namespace RefreshVIR
                     double avgRuntimeSeconds = 0;
 
                     string currentStatus = "Idle";
+                    string currentRunTime = "";
 
                     // -----------------------------------------
                     // LAST RUN + STATUS + NEXT RUN

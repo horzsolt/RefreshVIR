@@ -53,7 +53,7 @@ namespace RefreshVIR
             this.WindowState = FormWindowState.Maximized;
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Text = Environment.UserDomainName + "-" + Environment.UserName;
+            this.Text = Environment.UserDomainName + "-" + Environment.UserName + " [" + Environment.GetEnvironmentVariable("VIR_SQL_SERVER_NAME") + "]";
             this.KeyPreview = true;
 
             // 
