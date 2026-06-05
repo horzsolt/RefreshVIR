@@ -95,6 +95,9 @@ namespace RefreshVIR
 
         private async void RunJobButton_Click(object sender, EventArgs e)
         {
+            if (!JobAuthorization.ConfirmAllowedToStartJobs(this))
+                return;
+
             string jobName = fullRadio.Checked ? "QAD_GL_hajnali_frissites" : "QAD_GL_INC_frissites";
 
             var result = MessageBox.Show(
