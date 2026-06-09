@@ -3,11 +3,12 @@ namespace RefreshVIR
 {
     public class Configuration
     {
-        public static string connectionString = $"Server={Environment.GetEnvironmentVariable("VIR_SQL_SERVER_NAME")};" +
-                          $"Database=qad;" +
-                          $"User Id={Environment.GetEnvironmentVariable("VIR_SQL_USER")};" +
-                          $"Password={Environment.GetEnvironmentVariable("VIR_SQL_PASSWORD")};" +
-                          "Connection Timeout=500;Trust Server Certificate=true";
+        public static string connectionString =
+            $"Server={Environment.GetEnvironmentVariable("VIR_SQL_SERVER_NAME")};" +
+            $"Database=VIR;" +
+            $"User Id={Environment.GetEnvironmentVariable("VIR_SQL_USER")};" +
+            $"Password={Environment.GetEnvironmentVariable("VIR_SQL_PASSWORD")};" +
+            "Connection Timeout=500;Trust Server Certificate=true";
 
         public static Dictionary<string, string> jobs = new Dictionary<string, string>
             {

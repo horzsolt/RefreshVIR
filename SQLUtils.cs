@@ -20,6 +20,8 @@ namespace RefreshVIR
                     cmd.Parameters.AddWithValue("@job_name", jobName);
                     await cmd.ExecuteNonQueryAsync();
                 }
+
+                LogAction($"Job indítva: {jobName}");
             }
         }
         public static void StartJob(string jobName, string connectionString)
@@ -40,6 +42,7 @@ namespace RefreshVIR
                 }
 
                 MessageBox.Show($"Job '{jobName}' elindítva.", "Info");
+                LogAction($"Job indítva: {jobName}");
             }
             catch (SqlException ex)
             {
@@ -61,6 +64,7 @@ namespace RefreshVIR
                     try
                     {
                         cmd.ExecuteNonQuery();
+                        LogAction($"Job leállítva: {jobName}");
                     }
                     catch (SqlException ex)
                     {
@@ -451,13 +455,15 @@ namespace RefreshVIR
 
         public static List<JobExecution> GetJobExecutionHistory(
             string connectionString,
-            Dictionary<string, string> jobs)
+            Dictionary<string, string> jobs,
+            int historyDays)
         {
             List<JobExecution> result =
                 new List<JobExecution>();
 
-            DateTime fromTime =
-                DateTime.Today.AddDays(-1).AddHours(19);
+            DateTime fromTime = historyDays == 1
+                ? DateTime.Today.AddDays(-1).AddHours(19)
+                : DateTime.Today.AddDays(-7);
 
             using SqlConnection conn =
                 new SqlConnection(connectionString);
@@ -535,6 +541,31 @@ ORDER BY h.run_date, h.run_time", conn);
             }
 
             return result;
+        }
+
+        public static void LogAction(string activity)
+        {
+            try
+            {
+                using SqlConnection conn = new SqlConnection(Configuration.connectionString);
+                conn.Open();
+
+                using SqlCommand cmd = new SqlCommand(@"
+                    INSERT INTO dbo.t_RefreshVir_Action_Log (user_name, activity, action_time)
+                    VALUES (@UserName, @Activity, @ActionTime)", conn);
+
+                cmd.Parameters.AddWithValue(
+                    "@UserName",
+                    $"{Environment.UserDomainName}-{Environment.UserName}");
+                cmd.Parameters.AddWithValue("@Activity", activity);
+                cmd.Parameters.AddWithValue("@ActionTime", DateTime.Now);
+
+                cmd.ExecuteNonQuery();
+            }
+            catch
+            {
+                // Logging must not interrupt normal application flow.
+            }
         }
     }
 }

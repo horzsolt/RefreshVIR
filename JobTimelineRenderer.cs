@@ -10,15 +10,17 @@ public static class JobTimelineRenderer
     public static Bitmap CreateJobTimelineChart(
         List<JobExecution> jobs,
         int width,
-        int height)
+        int height,
+        int historyDays)
     {
         width = Math.Max(1, width);
         height = Math.Max(1, height);
 
         DateTime now = DateTime.Now;
 
-        DateTime timelineStart =
-            DateTime.Today.AddDays(-1).AddHours(20);
+        DateTime timelineStart = historyDays == 1
+            ? DateTime.Today.AddDays(-1).AddHours(20)
+            : DateTime.Today.AddDays(-7);
 
         DateTime timelineEnd = now;
 

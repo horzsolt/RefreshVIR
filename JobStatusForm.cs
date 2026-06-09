@@ -12,6 +12,10 @@ namespace RefreshVIR
         private Panel timelinePanel;
         private SplitContainer splitContainer;
         private List<JobExecution>? cachedTimelineHistory;
+        private RadioButton oneDayRadio;
+        private RadioButton oneWeekRadio;
+        private int historyDays = 1;
+        private bool suppressHistoryRangeEvents;
 
         public JobStatusForm(string connectionString, Dictionary<string, string> jobNames)
         {
@@ -44,6 +48,36 @@ namespace RefreshVIR
                 Height = 40
             };
             refreshButton.Click += (s, e) => this.RefreshGrid();
+
+            Panel historyRangePanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 36
+            };
+
+            oneDayRadio = new RadioButton
+            {
+                Text = "1 napos adat",
+                Checked = true,
+                Left = 10,
+                Top = 8,
+                AutoSize = true
+            };
+            oneDayRadio.CheckedChanged += HistoryRange_CheckedChanged;
+
+            oneWeekRadio = new RadioButton
+            {
+                Text = "1 hetes adat",
+                Left = 150,
+                Top = 8,
+                AutoSize = true
+            };
+            oneWeekRadio.CheckedChanged += HistoryRange_CheckedChanged;
+
+            historyRangePanel.Controls.Add(oneDayRadio);
+            historyRangePanel.Controls.Add(oneWeekRadio);
+
+            this.FormClosed += JobStatusForm_FormClosed;
 
             grid = new DataGridView
             {
@@ -108,18 +142,38 @@ namespace RefreshVIR
             Controls.Add(splitContainer);
             Controls.Add(closeButton);
             Controls.Add(refreshButton);
+            Controls.Add(historyRangePanel);
 
             Load += JobStatusForm_Load;
         }
 
-        private void JobStatusForm_Load(object sender, EventArgs e)
+        private void HistoryRange_CheckedChanged(object? sender, EventArgs e)
         {
+            if (suppressHistoryRangeEvents)
+                return;
+
+            if (sender is not RadioButton radio || !radio.Checked)
+                return;
+
+            int selectedDays = oneWeekRadio.Checked ? 7 : 1;
+            if (selectedDays == historyDays)
+                return;
+
+            historyDays = selectedDays;
+
+            string rangeLabel = historyDays == 1 ? "1 napos adat" : "1 hetes adat";
+            SQLUtils.LogAction($"Megjelenítési időszak módosítva: {rangeLabel}");
+
+            ReloadViewData();
+        }
+
+        private void ReloadViewData()
+        {
+            Cursor.Current = Cursors.WaitCursor;
+
             try
             {
-                Cursor.Current = Cursors.WaitCursor;
-
                 BindGridData();
-                splitContainer.SplitterDistance = grid.Height;
                 RefreshTimeline();
             }
             finally
@@ -128,9 +182,32 @@ namespace RefreshVIR
             }
         }
 
+        private void JobStatusForm_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            SQLUtils.LogAction("Státusz ablak bezárva");
+        }
+
+        private void JobStatusForm_Load(object sender, EventArgs e)
+        {
+            try
+            {
+                suppressHistoryRangeEvents = true;
+                Cursor.Current = Cursors.WaitCursor;
+
+                BindGridData();
+                splitContainer.SplitterDistance = grid.Height;
+                RefreshTimeline();
+            }
+            finally
+            {
+                suppressHistoryRangeEvents = false;
+                Cursor.Current = Cursors.Default;
+            }
+        }
+
         private void BindGridData()
         {
-            grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, 14);
+            grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, historyDays);
 
             grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -211,6 +288,8 @@ namespace RefreshVIR
 
         private void RefreshGrid()
         {
+            SQLUtils.LogAction("Adatok frissítése (Státusz ablak)");
+
             Cursor.Current = Cursors.WaitCursor;
 
             try
@@ -220,7 +299,8 @@ namespace RefreshVIR
                 cachedTimelineHistory =
                     SQLUtils.GetJobExecutionHistory(
                         connectionString,
-                        jobs);
+                        jobs,
+                        historyDays);
                 RenderTimeline();
             }
             finally
@@ -234,7 +314,8 @@ namespace RefreshVIR
             cachedTimelineHistory =
                 SQLUtils.GetJobExecutionHistory(
                     connectionString,
-                    jobs);
+                    jobs,
+                    historyDays);
             RenderTimeline();
         }
 
@@ -250,7 +331,8 @@ namespace RefreshVIR
                 JobTimelineRenderer.CreateJobTimelineChart(
                     cachedTimelineHistory,
                     width,
-                    height);
+                    height,
+                    historyDays);
 
             timelinePictureBox.Image?.Dispose();
             timelinePictureBox.Image = bmp;

@@ -91,6 +91,12 @@ namespace RefreshVIR
             this.Controls.Add(topPanel);
 
             this.Load += StoredProcStatusForm_Load;
+            this.FormClosed += GLRefreshForm_FormClosed;
+        }
+
+        private void GLRefreshForm_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            SQLUtils.LogAction("Főkönyv ablak bezárva");
         }
 
         private async void RunJobButton_Click(object sender, EventArgs e)
