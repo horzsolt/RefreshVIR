@@ -10,6 +10,40 @@ namespace RefreshVIR
             $"Password={Environment.GetEnvironmentVariable("VIR_SQL_PASSWORD")};" +
             "Connection Timeout=500;Trust Server Certificate=true";
 
+        public const string DefaultPowerBiTenantId = "ba5e5692-d1f7-435a-b0c2-6cc74d8e102f";
+
+        public static string PowerBiTenantId =
+            Environment.GetEnvironmentVariable("CURSOR_POWERBI_TENANT_ID")
+            ?? DefaultPowerBiTenantId;
+
+        public static string PowerBiClientId =
+            Environment.GetEnvironmentVariable("CURSOR_POWERBI_CLIENT_ID") ?? "";
+
+        public static string PowerBiUser =
+            Environment.GetEnvironmentVariable("CURSOR_POWERBI_USER") ?? "";
+
+        public static string PowerBiPassword =
+            Environment.GetEnvironmentVariable("CURSOR_POWERBI_PASSWORD") ?? "";
+
+        public static bool IsPowerBiConfigured =>
+            !string.IsNullOrWhiteSpace(PowerBiClientId)
+            && !string.IsNullOrWhiteSpace(PowerBiUser)
+            && !string.IsNullOrWhiteSpace(PowerBiPassword);
+
+        public static string? GetPowerBiConfigurationError()
+        {
+            if (string.IsNullOrWhiteSpace(PowerBiClientId))
+                return "A CURSOR_POWERBI_CLIENT_ID környezeti változó nincs beállítva.";
+
+            if (string.IsNullOrWhiteSpace(PowerBiUser))
+                return "A CURSOR_POWERBI_USER környezeti változó nincs beállítva.";
+
+            if (string.IsNullOrWhiteSpace(PowerBiPassword))
+                return "A CURSOR_POWERBI_PASSWORD környezeti változó nincs beállítva.";
+
+            return null;
+        }
+
         public static Dictionary<string, string> jobs = new Dictionary<string, string>
             {
                 { "QAD_GL_hajnali_frissites", "Főkönyv teljes frissítés" },

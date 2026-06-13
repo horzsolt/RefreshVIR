@@ -9,6 +9,7 @@ namespace RefreshVIR
         /// </summary>
         private System.ComponentModel.IContainer components = null;
         private System.Windows.Forms.Button btnRefreshGL;
+        private System.Windows.Forms.Button btnPowerBI;
         private System.Windows.Forms.Button btnExit;
         private System.Windows.Forms.ProgressBar progressBar1;
         private System.Windows.Forms.TableLayoutPanel mainLayout;
@@ -37,6 +38,7 @@ namespace RefreshVIR
         private void InitializeComponent()
         {
             this.btnRefreshGL = new Button();
+            this.btnPowerBI = new Button();
             this.btnExit = new Button();
             this.button1 = new Button();
             this.progressBar1 = new ProgressBar();
@@ -80,6 +82,20 @@ namespace RefreshVIR
             toolTip.SetToolTip(this.btnRefreshGL, "Főkönyvi adatok kézi frissítése, jobok státusza");
 
             // 
+            // btnPowerBI
+            // 
+            this.btnPowerBI.Text = "Power BI";
+            this.btnPowerBI.Dock = DockStyle.Fill;
+            this.btnPowerBI.Margin = new Padding(30);
+            this.btnPowerBI.Font = new Font("Segoe UI", 14, FontStyle.Bold);
+            this.btnPowerBI.BackColor = Color.MediumPurple;
+            this.btnPowerBI.ForeColor = Color.White;
+            this.btnPowerBI.FlatStyle = FlatStyle.Flat;
+            this.btnPowerBI.Cursor = Cursors.Hand;
+            this.btnPowerBI.Click += btnPowerBI_Click;
+            toolTip.SetToolTip(this.btnPowerBI, "Power BI jelentés publikálása a felhőbe");
+
+            // 
             // button1 (Status)
             // 
             this.button1.Text = "Státusz";
@@ -118,15 +134,16 @@ namespace RefreshVIR
             // 
             // mainLayout
             // 
-            this.mainLayout.ColumnCount = 3;
+            this.mainLayout.ColumnCount = 4;
             this.mainLayout.RowCount = 3;
             this.mainLayout.Dock = DockStyle.Fill;
             this.mainLayout.BackColor = Color.White;
             this.mainLayout.Padding = new Padding(80);
 
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
 
             this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120F));   // title
             this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));   // buttons
@@ -136,14 +153,15 @@ namespace RefreshVIR
             // Layout placement
             // 
             this.mainLayout.Controls.Add(this.titleLabel, 0, 0);
-            this.mainLayout.SetColumnSpan(this.titleLabel, 3);
+            this.mainLayout.SetColumnSpan(this.titleLabel, 4);
 
             this.mainLayout.Controls.Add(this.button1, 0, 1);
             this.mainLayout.Controls.Add(this.btnRefreshGL, 1, 1);
-            this.mainLayout.Controls.Add(this.btnExit, 2, 1);
+            this.mainLayout.Controls.Add(this.btnPowerBI, 2, 1);
+            this.mainLayout.Controls.Add(this.btnExit, 3, 1);
 
             this.mainLayout.Controls.Add(this.progressBar1, 0, 2);
-            this.mainLayout.SetColumnSpan(this.progressBar1, 3);
+            this.mainLayout.SetColumnSpan(this.progressBar1, 4);
 
             // 
             // MainForm controls

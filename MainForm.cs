@@ -57,5 +57,12 @@ namespace RefreshVIR
             JobStatusForm jobForm = new JobStatusForm(Configuration.connectionString, Configuration.jobs);
             jobForm.Show();
         }
+
+        private void btnPowerBI_Click(object sender, EventArgs e)
+        {
+            SQLUtils.LogAction("Power BI gomb megnyomva");
+            PowerBIPublishForm publishForm = new PowerBIPublishForm();
+            publishForm.Show();
+        }
     }
 }
