@@ -21,16 +21,82 @@ namespace RefreshVIR
 
             Guid? stagingWorkspaceId = await PowerBiPipelineService.TryGetAppUpdateStagingWorkspaceIdAsync(httpClient);
 
-            return groups?.Value
+            List<GroupItem> filteredGroups = groups?.Value
                 .Where(g => stagingWorkspaceId == null || g.Id != stagingWorkspaceId.Value)
-                .Select(g => new PowerBiWorkspace
-                {
-                    Id = g.Id,
-                    Name = g.Name ?? g.Id.ToString()
-                })
-                .OrderBy(g => g.Name)
                 .ToList()
-                ?? new List<PowerBiWorkspace>();
+                ?? new List<GroupItem>();
+
+            IEnumerable<Task<PowerBiWorkspace>> workspaceTasks = filteredGroups.Select(async group =>
+            {
+                string accessEmail = await TryGetWorkspaceAccessEmailAsync(httpClient, group.Id);
+                return new PowerBiWorkspace
+                {
+                    Id = group.Id,
+                    Name = group.Name ?? group.Id.ToString(),
+                    AccessEmail = accessEmail
+                };
+            });
+
+            PowerBiWorkspace[] workspaces = await Task.WhenAll(workspaceTasks);
+
+            return workspaces
+                .OrderBy(g => g.Name)
+                .ToList();
+        }
+
+        private static async Task<string> TryGetWorkspaceAccessEmailAsync(
+            HttpClient httpClient,
+            Guid workspaceId)
+        {
+            using HttpResponseMessage response =
+                await httpClient.GetAsync($"groups/{workspaceId}/users");
+
+            if (!response.IsSuccessStatusCode)
+                return "";
+
+            string body = await response.Content.ReadAsStringAsync();
+            GroupUsersResponse? users =
+                JsonSerializer.Deserialize<GroupUsersResponse>(body, PowerBiApiClient.JsonOptions);
+
+            if (users?.Value == null || users.Value.Count == 0)
+                return "";
+
+            string serviceAccount = Configuration.PowerBiUser.Trim();
+
+            IEnumerable<GroupUserItem> otherUsers = users.Value.Where(user =>
+                !IsServiceAccountUser(user, serviceAccount));
+
+            List<string> accessEmails = otherUsers
+                .Where(user => string.Equals(user.PrincipalType, "User", StringComparison.OrdinalIgnoreCase))
+                .Select(user => user.EmailAddress ?? user.Identifier)
+                .Where(email => !string.IsNullOrWhiteSpace(email) && email.Contains('@'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(email => email, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (accessEmails.Count == 0)
+            {
+                accessEmails = otherUsers
+                    .Select(user => user.EmailAddress ?? user.Identifier)
+                    .Where(email => !string.IsNullOrWhiteSpace(email))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(email => email, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            if (accessEmails.Count == 0 && !string.IsNullOrWhiteSpace(serviceAccount))
+                return serviceAccount;
+
+            return string.Join(", ", accessEmails);
+        }
+
+        private static bool IsServiceAccountUser(GroupUserItem user, string serviceAccount)
+        {
+            if (string.IsNullOrWhiteSpace(serviceAccount))
+                return false;
+
+            return string.Equals(user.EmailAddress, serviceAccount, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(user.Identifier, serviceAccount, StringComparison.OrdinalIgnoreCase);
         }
 
         internal static async Task<Dictionary<Guid, DateTime>> GetLastUploadByReportIdAsync(

@@ -7,6 +7,11 @@ namespace RefreshVIR
     {
         public Guid Id { get; init; }
         public string Name { get; init; } = "";
+        public string AccessEmail { get; init; } = "";
+
+        public string DisplayText => string.IsNullOrWhiteSpace(AccessEmail)
+            ? Name
+            : $"{Name} ({AccessEmail})";
     }
 
     internal sealed class PowerBiReportInfo

@@ -17,6 +17,30 @@ namespace RefreshVIR
         public string? Name { get; set; }
     }
 
+    internal sealed class GroupUsersResponse
+    {
+        [JsonPropertyName("value")]
+        public List<GroupUserItem> Value { get; set; } = new();
+    }
+
+    internal sealed class GroupUserItem
+    {
+        [JsonPropertyName("displayName")]
+        public string? DisplayName { get; set; }
+
+        [JsonPropertyName("emailAddress")]
+        public string? EmailAddress { get; set; }
+
+        [JsonPropertyName("identifier")]
+        public string? Identifier { get; set; }
+
+        [JsonPropertyName("groupUserAccessRight")]
+        public string? GroupUserAccessRight { get; set; }
+
+        [JsonPropertyName("principalType")]
+        public string? PrincipalType { get; set; }
+    }
+
     internal sealed class ImportResponse
     {
         [JsonPropertyName("id")]

@@ -200,7 +200,7 @@ namespace RefreshVIR
 
                     suppressWorkspaceEvents = true;
                     workspaceComboBox.DataSource = null;
-                    workspaceComboBox.DisplayMember = nameof(PowerBiWorkspace.Name);
+                    workspaceComboBox.DisplayMember = nameof(PowerBiWorkspace.DisplayText);
                     workspaceComboBox.ValueMember = nameof(PowerBiWorkspace.Id);
                     workspaceComboBox.DataSource = workspaces;
                     suppressWorkspaceEvents = false;
