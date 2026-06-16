@@ -46,7 +46,12 @@ namespace RefreshVIR
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(ex.Message, "SQL hiba", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ErrorDialog.ShowError(
+                    null,
+                    "SQL hiba",
+                    ex.Message,
+                    ex,
+                    report => report.Add("Operation", "Start SQL Agent job"));
             }
         }
 
@@ -78,12 +83,16 @@ namespace RefreshVIR
                         }
                         else
                         {
-                            // Unknown SQL error → show original
-                            MessageBox.Show(
-                                ex.Message,
+                            ErrorDialog.ShowError(
+                                null,
                                 "SQL hiba",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Error);
+                                ex.Message,
+                                ex,
+                                report =>
+                                {
+                                    report.Add("Operation", "Stop SQL Agent job");
+                                    report.Add("Job name", jobName);
+                                });
                         }
                     }
                 }

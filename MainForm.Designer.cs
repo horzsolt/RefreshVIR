@@ -93,7 +93,7 @@ namespace RefreshVIR
             this.btnPowerBI.FlatStyle = FlatStyle.Flat;
             this.btnPowerBI.Cursor = Cursors.Hand;
             this.btnPowerBI.Click += btnPowerBI_Click;
-            toolTip.SetToolTip(this.btnPowerBI, "Power BI jelentés publikálása a felhőbe");
+            toolTip.SetToolTip(this.btnPowerBI, "Power BI riport publikálása a felhőbe");
 
             // 
             // button1 (Status)

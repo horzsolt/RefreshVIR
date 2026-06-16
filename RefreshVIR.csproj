@@ -21,4 +21,8 @@
     <PackageReference Include="Microsoft.Identity.Client" Version="4.84.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="_probe/**" />
+  </ItemGroup>
+
 </Project>

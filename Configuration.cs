@@ -13,17 +13,20 @@ namespace RefreshVIR
         public const string DefaultPowerBiTenantId = "ba5e5692-d1f7-435a-b0c2-6cc74d8e102f";
 
         public static string PowerBiTenantId =
-            Environment.GetEnvironmentVariable("CURSOR_POWERBI_TENANT_ID")
+            Environment.GetEnvironmentVariable("VIR_POWERBI_TENANT_ID")
             ?? DefaultPowerBiTenantId;
 
         public static string PowerBiClientId =
-            Environment.GetEnvironmentVariable("CURSOR_POWERBI_CLIENT_ID") ?? "";
+            Environment.GetEnvironmentVariable("VIR_POWERBI_CLIENT_ID") ?? "";
 
         public static string PowerBiUser =
-            Environment.GetEnvironmentVariable("CURSOR_POWERBI_USER") ?? "";
+            Environment.GetEnvironmentVariable("VIR_POWERBI_USER") ?? "";
 
         public static string PowerBiPassword =
-            Environment.GetEnvironmentVariable("CURSOR_POWERBI_PASSWORD") ?? "";
+            Environment.GetEnvironmentVariable("VIR_POWERBI_PASSWORD") ?? "";
+
+        public static string? PowerBiAppUpdatePipelineId =
+            Environment.GetEnvironmentVariable("VIR_POWERBI_APP_UPDATE_PIPELINE_ID");
 
         public static bool IsPowerBiConfigured =>
             !string.IsNullOrWhiteSpace(PowerBiClientId)
@@ -33,13 +36,13 @@ namespace RefreshVIR
         public static string? GetPowerBiConfigurationError()
         {
             if (string.IsNullOrWhiteSpace(PowerBiClientId))
-                return "A CURSOR_POWERBI_CLIENT_ID környezeti változó nincs beállítva.";
+                return "A VIR_POWERBI_CLIENT_ID környezeti változó nincs beállítva.";
 
             if (string.IsNullOrWhiteSpace(PowerBiUser))
-                return "A CURSOR_POWERBI_USER környezeti változó nincs beállítva.";
+                return "A VIR_POWERBI_USER környezeti változó nincs beállítva.";
 
             if (string.IsNullOrWhiteSpace(PowerBiPassword))
-                return "A CURSOR_POWERBI_PASSWORD környezeti változó nincs beállítva.";
+                return "A VIR_POWERBI_PASSWORD környezeti változó nincs beállítva.";
 
             return null;
         }

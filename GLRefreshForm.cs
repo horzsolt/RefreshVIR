@@ -131,7 +131,17 @@ namespace RefreshVIR
             catch (Exception ex)
             {
                 this.UseWaitCursor = false;
-                MessageBox.Show("A frissítés elindítása sikertelen:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ErrorDialog.ShowError(
+                    this,
+                    "Error",
+                    "A frissítés elindítása sikertelen:\n" + ex.Message,
+                    ex,
+                    report =>
+                    {
+                        report.Add("Operation", "Start GL refresh job");
+                        report.Add("Job name", jobName);
+                        report.Add("Refresh type", fullRadio.Checked ? "Full" : "Incremental");
+                    });
             }
             finally
             {
