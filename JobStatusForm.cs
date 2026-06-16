@@ -246,7 +246,7 @@ namespace RefreshVIR
 
                 bool isRunning = status == "Running";
 
-                if (!isRunning && !JobAuthorization.ConfirmAllowedToStartJobs(this))
+                if (!isRunning && !Authorization.ConfirmAllowedToStartJobs(this))
                     return;
 
                 string actionText = isRunning ? "leállítani" : "elindítani";

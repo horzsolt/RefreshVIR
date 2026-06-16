@@ -442,6 +442,17 @@ namespace RefreshVIR
                 reportName,
                 pbixPath);
 
+            if (!Authorization.ConfirmAllowedToPublishPowerBiReports(this))
+            {
+                LogPowerBiAction(
+                    "Publikálás elutasítva",
+                    selectedWorkspace,
+                    reportName,
+                    pbixPath,
+                    "ok=nincs jogosultság");
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(filePathTextBox.Text))
             {
                 LogPowerBiAction(
