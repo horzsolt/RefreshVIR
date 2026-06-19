@@ -159,6 +159,21 @@ namespace RefreshVIR
 
         [JsonPropertyName("localTimeZoneId")]
         public string? LocalTimeZoneId { get; set; }
+
+        [JsonPropertyName("notifyOption")]
+        public string? NotifyOption { get; set; }
+    }
+
+    internal sealed class RefreshScheduleRequest
+    {
+        [JsonPropertyName("value")]
+        public RefreshSchedule Value { get; set; } = new();
+    }
+
+    internal sealed class RefreshScheduleSnapshot
+    {
+        public bool WasDisabledForPublish { get; init; }
+        public RefreshSchedule Schedule { get; init; } = new();
     }
 
     internal sealed class RefreshesResponse
@@ -309,11 +324,32 @@ namespace RefreshVIR
 
     internal sealed class PipelineExecutionStepResponse
     {
+        [JsonPropertyName("index")]
+        public int? Index { get; set; }
+
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
         [JsonPropertyName("status")]
         public string? Status { get; set; }
 
         [JsonPropertyName("error")]
         public PipelineExecutionErrorResponse? Error { get; set; }
+
+        [JsonPropertyName("sourceAndTarget")]
+        public PipelineDeploymentSourceAndTargetResponse? SourceAndTarget { get; set; }
+    }
+
+    internal sealed class PipelineDeploymentSourceAndTargetResponse
+    {
+        [JsonPropertyName("sourceItemDisplayName")]
+        public string? SourceItemDisplayName { get; set; }
+
+        [JsonPropertyName("targetItemDisplayName")]
+        public string? TargetItemDisplayName { get; set; }
+
+        [JsonPropertyName("itemType")]
+        public string? ItemType { get; set; }
     }
 
     internal sealed class PipelineExecutionErrorResponse

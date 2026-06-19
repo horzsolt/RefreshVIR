@@ -15,6 +15,7 @@ namespace RefreshVIR
         public GLRefreshForm(string connectionString)
         {
             InitializeComponent();
+            ApplicationBrand.Apply(this);
 
             this.connectionString = connectionString;
 

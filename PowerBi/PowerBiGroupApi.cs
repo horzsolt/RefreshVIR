@@ -5,9 +5,9 @@ namespace RefreshVIR
 {
     internal static class PowerBiGroupApi
     {
-        internal static async Task<IReadOnlyList<PowerBiWorkspace>> GetWorkspacesAsync()
+        internal static async Task<IReadOnlyList<PowerBiWorkspace>> GetWorkspacesAsync(PowerBiSession session)
         {
-            using HttpClient httpClient = await PowerBiApiClient.CreateAuthorizedClientAsync();
+            HttpClient httpClient = session.HttpClient;
 
             using HttpResponseMessage response =
                 await httpClient.GetAsync("groups");
@@ -19,34 +19,24 @@ namespace RefreshVIR
             GroupsResponse? groups =
                 JsonSerializer.Deserialize<GroupsResponse>(body, PowerBiApiClient.JsonOptions);
 
-            Guid? stagingWorkspaceId = await PowerBiPipelineService.TryGetAppUpdateStagingWorkspaceIdAsync(httpClient);
+            Guid? stagingWorkspaceId = (await session.Pipeline.TryGetAppUpdatePipelineAsync())?.StagingWorkspaceId;
 
-            List<GroupItem> filteredGroups = groups?.Value
+            return groups?.Value
                 .Where(g => stagingWorkspaceId == null || g.Id != stagingWorkspaceId.Value)
-                .ToList()
-                ?? new List<GroupItem>();
-
-            IEnumerable<Task<PowerBiWorkspace>> workspaceTasks = filteredGroups.Select(async group =>
-            {
-                string accessEmail = await TryGetWorkspaceAccessEmailAsync(httpClient, group.Id);
-                return new PowerBiWorkspace
+                .Select(g => new PowerBiWorkspace
                 {
-                    Id = group.Id,
-                    Name = group.Name ?? group.Id.ToString(),
-                    AccessEmail = accessEmail
-                };
-            });
-
-            PowerBiWorkspace[] workspaces = await Task.WhenAll(workspaceTasks);
-
-            return workspaces
+                    Id = g.Id,
+                    Name = g.Name ?? g.Id.ToString()
+                })
                 .OrderBy(g => g.Name)
-                .ToList();
+                .ToList()
+                ?? new List<PowerBiWorkspace>();
         }
 
-        private static async Task<string> TryGetWorkspaceAccessEmailAsync(
+        internal static async Task<string> GetWorkspaceAccessEmailAsync(
             HttpClient httpClient,
-            Guid workspaceId)
+            Guid workspaceId,
+            string? workspaceName = null)
         {
             using HttpResponseMessage response =
                 await httpClient.GetAsync($"groups/{workspaceId}/users");
@@ -61,33 +51,87 @@ namespace RefreshVIR
             if (users?.Value == null || users.Value.Count == 0)
                 return "";
 
-            string serviceAccount = Configuration.PowerBiUser.Trim();
+            return ResolveWorkspaceAccessEmail(
+                users.Value,
+                Configuration.PowerBiUser.Trim(),
+                workspaceName);
+        }
 
-            IEnumerable<GroupUserItem> otherUsers = users.Value.Where(user =>
-                !IsServiceAccountUser(user, serviceAccount));
-
-            List<string> accessEmails = otherUsers
-                .Where(user => string.Equals(user.PrincipalType, "User", StringComparison.OrdinalIgnoreCase))
-                .Select(user => user.EmailAddress ?? user.Identifier)
-                .Where(email => !string.IsNullOrWhiteSpace(email) && email.Contains('@'))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(email => email, StringComparer.OrdinalIgnoreCase)
+        private static string ResolveWorkspaceAccessEmail(
+            IReadOnlyList<GroupUserItem> users,
+            string serviceAccount,
+            string? workspaceName)
+        {
+            List<AccessEmailCandidate> candidates = users
+                .Where(user => !IsServiceAccountUser(user, serviceAccount))
+                .Where(user => !string.Equals(user.PrincipalType, "App", StringComparison.OrdinalIgnoreCase))
+                .Select(user => new AccessEmailCandidate(user))
+                .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Email))
                 .ToList();
 
-            if (accessEmails.Count == 0)
-            {
-                accessEmails = otherUsers
-                    .Select(user => user.EmailAddress ?? user.Identifier)
-                    .Where(email => !string.IsNullOrWhiteSpace(email))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(email => email, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-            }
+            AccessEmailCandidate? bestCandidate = candidates
+                .OrderBy(candidate => ScoreAccessEmail(candidate, workspaceName))
+                .ThenByDescending(candidate => candidate.IsGroup)
+                .ThenByDescending(candidate => candidate.IsAdmin)
+                .ThenBy(candidate => candidate.Email, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
 
-            if (accessEmails.Count == 0 && !string.IsNullOrWhiteSpace(serviceAccount))
+            if (bestCandidate != null)
+                return bestCandidate.Email!;
+
+            if (!string.IsNullOrWhiteSpace(serviceAccount))
                 return serviceAccount;
 
-            return string.Join(", ", accessEmails);
+            return "";
+        }
+
+        private static int ScoreAccessEmail(AccessEmailCandidate candidate, string? workspaceName)
+        {
+            string email = candidate.Email!;
+            int score = 0;
+
+            if (email.Contains("vir_gw@", StringComparison.OrdinalIgnoreCase)
+                || email.StartsWith("vir_gw@", StringComparison.OrdinalIgnoreCase))
+            {
+                return -100;
+            }
+
+            if (email.EndsWith("@goodwillpharma365.hu", StringComparison.OrdinalIgnoreCase))
+                score -= 40;
+
+            if (!string.IsNullOrWhiteSpace(workspaceName)
+                && email.Contains(NormalizeWorkspaceToken(workspaceName), StringComparison.OrdinalIgnoreCase))
+            {
+                score -= 20;
+            }
+
+            if (candidate.IsGroup)
+                score -= 10;
+            else
+                score += 20;
+
+            if (candidate.IsAdmin)
+                score -= 5;
+            else
+                score += 5;
+
+            if (email.Contains("ebond", StringComparison.OrdinalIgnoreCase))
+                score += 100;
+
+            return score;
+        }
+
+        private static string NormalizeWorkspaceToken(string workspaceName)
+        {
+            string normalized = workspaceName.Trim();
+            int parenIndex = normalized.IndexOf('(');
+            if (parenIndex > 0)
+                normalized = normalized[..parenIndex];
+
+            return normalized
+                .Replace(" ", "", StringComparison.Ordinal)
+                .Replace("-", "", StringComparison.Ordinal)
+                .ToLowerInvariant();
         }
 
         private static bool IsServiceAccountUser(GroupUserItem user, string serviceAccount)
@@ -95,19 +139,95 @@ namespace RefreshVIR
             if (string.IsNullOrWhiteSpace(serviceAccount))
                 return false;
 
-            return string.Equals(user.EmailAddress, serviceAccount, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(user.Identifier, serviceAccount, StringComparison.OrdinalIgnoreCase);
+            string normalizedServiceAccount = NormalizeAccountReference(serviceAccount);
+
+            foreach (string? candidate in new[] { user.EmailAddress, user.Identifier, user.DisplayName })
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                    continue;
+
+                if (string.Equals(candidate, serviceAccount, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                if (string.Equals(
+                        NormalizeAccountReference(candidate),
+                        normalizedServiceAccount,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string NormalizeAccountReference(string value)
+        {
+            value = value.Trim();
+            int atIndex = value.IndexOf('@');
+            return atIndex >= 0 ? value[..atIndex] : value;
+        }
+
+        private sealed class AccessEmailCandidate
+        {
+            internal AccessEmailCandidate(GroupUserItem user)
+            {
+                Email = ResolveEmail(user);
+                IsGroup = string.Equals(user.PrincipalType, "Group", StringComparison.OrdinalIgnoreCase);
+                IsAdmin = string.Equals(user.GroupUserAccessRight, "Admin", StringComparison.OrdinalIgnoreCase);
+            }
+
+            internal string? Email { get; }
+            internal bool IsGroup { get; }
+            internal bool IsAdmin { get; }
+            internal bool HasAtSignEmail =>
+                !string.IsNullOrWhiteSpace(Email) && Email.Contains('@');
+
+            private static string? ResolveEmail(GroupUserItem user)
+            {
+                if (!string.IsNullOrWhiteSpace(user.EmailAddress))
+                    return user.EmailAddress.Trim();
+
+                if (!string.IsNullOrWhiteSpace(user.Identifier) && user.Identifier.Contains('@'))
+                    return user.Identifier.Trim();
+
+                if (!string.IsNullOrWhiteSpace(user.DisplayName) && user.DisplayName.Contains('@'))
+                    return user.DisplayName.Trim();
+
+                if (ContainsVirGwReference(user))
+                    return "vir_gw@goodwillpharma365.hu";
+
+                return null;
+            }
+
+            private static bool ContainsVirGwReference(GroupUserItem user)
+            {
+                foreach (string? value in new[] { user.DisplayName, user.Identifier, user.EmailAddress })
+                {
+                    if (!string.IsNullOrWhiteSpace(value)
+                        && value.Contains("vir_gw", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
         }
 
         internal static async Task<Dictionary<Guid, DateTime>> GetLastUploadByReportIdAsync(
             HttpClient httpClient,
-            Guid workspaceId)
+            Guid workspaceId,
+            ICollection<string>? loadWarnings = null)
         {
             using HttpResponseMessage response =
                 await httpClient.GetAsync($"groups/{workspaceId}/imports");
 
             if (!response.IsSuccessStatusCode)
+            {
+                loadWarnings?.Add("Import előzmények nem elérhetők.");
                 return new Dictionary<Guid, DateTime>();
+            }
 
             string body = await response.Content.ReadAsStringAsync();
             ImportsResponse? imports = JsonSerializer.Deserialize<ImportsResponse>(body, PowerBiApiClient.JsonOptions);
@@ -172,11 +292,29 @@ namespace RefreshVIR
 
         internal static async Task ClearWorkspaceContentAsync(
             HttpClient httpClient,
-            Guid workspaceId)
+            Guid workspaceId,
+            AppUpdateProgressTracker? tracker = null)
         {
             List<ReportItem> reports = await GetReportsAsync(httpClient, workspaceId);
-            foreach (ReportItem report in reports)
+            int totalItems = reports.Count;
+            List<DatasetItem> datasets = await GetDatasetsAsync(httpClient, workspaceId);
+            totalItems += datasets.Count;
+
+            int completedItems = 0;
+            tracker?.Report($"Staging munkaterület: {reports.Count} riport törlése...");
+            for (int index = 0; index < reports.Count; index++)
             {
+                ReportItem report = reports[index];
+                completedItems++;
+                int percent = totalItems == 0 ? 100 : completedItems * 100 / totalItems;
+                tracker?.ReportSubStep(
+                    $"Staging: riport törlése — {report.Name ?? report.Id.ToString()}",
+                    completedItems,
+                    totalItems);
+                tracker?.Report(
+                    $"Staging munkaterület: riport törlése ({index + 1}/{reports.Count}) — {report.Name ?? report.Id.ToString()}",
+                    percent);
+
                 using HttpResponseMessage response = await httpClient.DeleteAsync(
                     $"groups/{workspaceId}/reports/{report.Id}");
 
@@ -196,9 +334,16 @@ namespace RefreshVIR
                     (int)response.StatusCode);
             }
 
-            List<DatasetItem> datasets = await GetDatasetsAsync(httpClient, workspaceId);
-            foreach (DatasetItem dataset in datasets)
+            tracker?.Report($"Staging munkaterület: {datasets.Count} adathalmaz törlése...");
+            for (int index = 0; index < datasets.Count; index++)
             {
+                DatasetItem dataset = datasets[index];
+                completedItems++;
+                int percent = totalItems == 0 ? 100 : completedItems * 100 / totalItems;
+                tracker?.Report(
+                    $"Staging munkaterület: adathalmaz törlése ({index + 1}/{datasets.Count}) — {dataset.Name ?? dataset.Id.ToString()}",
+                    percent);
+
                 using HttpResponseMessage response = await httpClient.DeleteAsync(
                     $"groups/{workspaceId}/datasets/{dataset.Id}");
 

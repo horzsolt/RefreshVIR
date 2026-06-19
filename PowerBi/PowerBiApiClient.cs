@@ -19,7 +19,7 @@ namespace RefreshVIR
             PropertyNameCaseInsensitive = true
         };
 
-        internal static async Task<HttpClient> CreateAuthorizedClientAsync()
+        internal static async Task<PowerBiSession> CreateSessionAsync()
         {
             string? configError = Configuration.GetPowerBiConfigurationError();
             if (configError != null)
@@ -34,7 +34,7 @@ namespace RefreshVIR
             httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", accessToken);
 
-            return httpClient;
+            return new PowerBiSession(httpClient);
         }
 
         private static async Task<string> AcquireAccessTokenAsync()

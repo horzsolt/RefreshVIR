@@ -5,18 +5,28 @@ namespace RefreshVIR
         private static readonly HashSet<string> AllowedUsers =
             new(StringComparer.OrdinalIgnoreCase) { "GW0251", "GW0300" };
 
+        private static bool IsCurrentUserAllowed() =>
+            AllowedUsers.Contains(Environment.UserDomainName)
+            || AllowedUsers.Contains(Environment.UserName);
+
         public static bool IsAllowedToStartJobs() =>
-            AllowedUsers.Contains(Environment.UserName);
+            IsCurrentUserAllowed();
+
+        public static bool IsAllowedToPublishReports() =>
+            IsCurrentUserAllowed();
 
         public static bool ConfirmAllowedToStartJobs(IWin32Window? owner = null) =>
-            ConfirmAllowed(owner, "Önnek nincs joga frissítő job-ot indítani");
+            ConfirmAllowed(owner, "Önnek nincs joga frissítő job-ot indítani", IsAllowedToStartJobs);
 
         public static bool ConfirmAllowedToPublishPowerBiReports(IWin32Window? owner = null) =>
-            ConfirmAllowed(owner, "Önnek nincs joga Power BI riportot publikálni");
+            ConfirmAllowed(owner, "Önnek nincs joga Power BI riportot publikálni", IsAllowedToPublishReports);
 
-        private static bool ConfirmAllowed(IWin32Window? owner, string deniedMessage)
+        private static bool ConfirmAllowed(
+            IWin32Window? owner,
+            string deniedMessage,
+            Func<bool> isAllowed)
         {
-            if (IsAllowedToStartJobs())
+            if (isAllowed())
                 return true;
 
             MessageBox.Show(

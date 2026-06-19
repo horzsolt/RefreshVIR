@@ -1,159 +1,17 @@
 namespace RefreshVIR
 {
-    public class PowerBIPublishForm : Form
+    public partial class PowerBIPublishForm : Form
     {
-        private TextBox filePathTextBox;
-        private Button browseButton;
-        private ComboBox workspaceComboBox;
-        private Button publishButton;
-        private Label statusLabel;
-        private Button closeButton;
-        private DataGridView reportsGrid;
         private List<PowerBiWorkspace> workspaces = new();
+        private PowerBiSession? _powerBiSession;
+        private PowerBiWorkspaceSnapshot? _currentSnapshot;
         private bool suppressWorkspaceEvents;
         private int waitCursorDepth;
 
         public PowerBIPublishForm()
         {
             InitializeComponent();
-        }
-
-        private void InitializeComponent()
-        {
-            this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.Text = "Power BI riport publikálása";
-            this.KeyPreview = true;
-            this.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Escape)
-                    this.Close();
-            };
-            this.FormClosed += PowerBIPublishForm_FormClosed;
-            this.Load += PowerBIPublishForm_Load;
-
-            TableLayoutPanel topLayout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                ColumnCount = 3,
-                RowCount = 3,
-                Padding = new Padding(10)
-            };
-            topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 115));
-            topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-
-            Label fileLabel = new Label
-            {
-                Text = "PBIX fájl:",
-                Anchor = AnchorStyles.Left,
-                AutoSize = true
-            };
-
-            filePathTextBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true
-            };
-
-            browseButton = new Button
-            {
-                Text = "Tallózás...",
-                Dock = DockStyle.Fill,
-                Height = 28
-            };
-            browseButton.Click += BrowseButton_Click;
-
-            Label workspaceLabel = new Label
-            {
-                Text = "Munkaterület:",
-                Anchor = AnchorStyles.Left,
-                AutoSize = true
-            };
-
-            workspaceComboBox = new ComboBox
-            {
-                Dock = DockStyle.Fill,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            workspaceComboBox.SelectedIndexChanged += WorkspaceComboBox_SelectedIndexChanged;
-
-            publishButton = new Button
-            {
-                Text = "Publikálás",
-                Width = 160,
-                Height = 32,
-                Anchor = AnchorStyles.Left
-            };
-            publishButton.Click += PublishButton_Click;
-
-            statusLabel = new Label
-            {
-                Text = "",
-                AutoSize = true,
-                Anchor = AnchorStyles.Left,
-                MaximumSize = new Size(900, 0)
-            };
-
-            Panel actionPanel = new Panel
-            {
-                Dock = DockStyle.Fill
-            };
-            actionPanel.Controls.Add(publishButton);
-            actionPanel.Controls.Add(statusLabel);
-            publishButton.Location = new Point(0, 0);
-            statusLabel.Location = new Point(170, 8);
-
-            topLayout.Controls.Add(fileLabel, 0, 0);
-            topLayout.Controls.Add(filePathTextBox, 1, 0);
-            topLayout.Controls.Add(browseButton, 2, 0);
-            topLayout.Controls.Add(workspaceLabel, 0, 1);
-            topLayout.Controls.Add(workspaceComboBox, 1, 1);
-            topLayout.SetColumnSpan(workspaceComboBox, 2);
-            topLayout.Controls.Add(actionPanel, 1, 2);
-            topLayout.SetColumnSpan(actionPanel, 2);
-
-            topLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            topLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            topLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-            reportsGrid = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                AllowUserToResizeRows = false,
-                MultiSelect = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                RowHeadersVisible = false,
-                EnableHeadersVisualStyles = false
-            };
-            reportsGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.LightGray;
-            reportsGrid.ColumnHeadersDefaultCellStyle.Font =
-                new Font(reportsGrid.Font, FontStyle.Bold);
-            reportsGrid.ColumnHeadersDefaultCellStyle.Alignment =
-                DataGridViewContentAlignment.MiddleCenter;
-            reportsGrid.DefaultCellStyle.SelectionBackColor = Color.LightBlue;
-            reportsGrid.DefaultCellStyle.SelectionForeColor = Color.Black;
-            reportsGrid.DataBindingComplete += ReportsGrid_DataBindingComplete;
-
-            closeButton = new Button
-            {
-                Text = "<< Vissza",
-                Dock = DockStyle.Bottom,
-                Height = 40
-            };
-            closeButton.Click += CloseButton_Click;
-
-            Controls.Add(reportsGrid);
-            Controls.Add(closeButton);
-            Controls.Add(topLayout);
+            ApplicationBrand.Apply(this);
         }
 
         private async void PowerBIPublishForm_Load(object? sender, EventArgs e)
@@ -171,6 +29,7 @@ namespace RefreshVIR
                 return;
             }
 
+            _powerBiSession = await PowerBiApiClient.CreateSessionAsync();
             await LoadWorkspacesAsync();
         }
 
@@ -180,9 +39,17 @@ namespace RefreshVIR
                 return;
 
             if (workspaceComboBox.SelectedItem is PowerBiWorkspace workspace)
-                await LoadReportsAsync(workspace);
+            {
+                await Task.WhenAll(
+                    LoadWorkspaceAccessEmailAsync(workspace),
+                    LoadReportsAsync(workspace));
+            }
             else
+            {
+                workspaceAccessLabel.Text = "";
+                _currentSnapshot = null;
                 BindReports(Array.Empty<PowerBiReportInfo>());
+            }
         }
 
         private async Task LoadWorkspacesAsync()
@@ -196,11 +63,14 @@ namespace RefreshVIR
 
                 try
                 {
-                    workspaces = (await PowerBIService.GetWorkspacesAsync()).ToList();
+                    if (_powerBiSession == null)
+                        throw new InvalidOperationException("Power BI munkamenet nem elérhető.");
+
+                    workspaces = (await PowerBIService.GetWorkspacesAsync(_powerBiSession)).ToList();
 
                     suppressWorkspaceEvents = true;
                     workspaceComboBox.DataSource = null;
-                    workspaceComboBox.DisplayMember = nameof(PowerBiWorkspace.DisplayText);
+                    workspaceComboBox.DisplayMember = nameof(PowerBiWorkspace.Name);
                     workspaceComboBox.ValueMember = nameof(PowerBiWorkspace.Id);
                     workspaceComboBox.DataSource = workspaces;
                     suppressWorkspaceEvents = false;
@@ -212,7 +82,9 @@ namespace RefreshVIR
                     }
                     else if (workspaceComboBox.SelectedItem is PowerBiWorkspace workspace)
                     {
-                        await LoadReportsAsync(workspace);
+                        await Task.WhenAll(
+                            LoadWorkspaceAccessEmailAsync(workspace),
+                            LoadReportsAsync(workspace));
                     }
                     else
                     {
@@ -238,6 +110,26 @@ namespace RefreshVIR
             });
         }
 
+        private async Task LoadWorkspaceAccessEmailAsync(PowerBiWorkspace workspace)
+        {
+            try
+            {
+                if (_powerBiSession == null)
+                    return;
+
+                string accessEmail = await _powerBiSession.GetWorkspaceAccessEmailAsync(
+                    workspace.Id,
+                    workspace.Name);
+                workspaceAccessLabel.Text = string.IsNullOrWhiteSpace(accessEmail)
+                    ? ""
+                    : $"Hozzáférés: {accessEmail}";
+            }
+            catch
+            {
+                workspaceAccessLabel.Text = "";
+            }
+        }
+
         private async Task LoadReportsAsync(PowerBiWorkspace workspace, bool updateStatus = true)
         {
             await RunWithWaitCursorAsync(async () =>
@@ -251,17 +143,17 @@ namespace RefreshVIR
 
                 try
                 {
-                    IReadOnlyList<PowerBiReportInfo> reports =
-                        await PowerBIService.GetWorkspaceReportsAsync(workspace.Id);
+                    if (_powerBiSession == null)
+                        throw new InvalidOperationException("Power BI munkamenet nem elérhető.");
 
-                    BindReports(reports);
+                    PowerBiWorkspaceSnapshot snapshot =
+                        await PowerBIService.LoadWorkspaceSnapshotAsync(_powerBiSession, workspace.Id);
+
+                    _currentSnapshot = snapshot;
+                    BindReports(snapshot.Reports);
 
                     if (updateStatus)
-                    {
-                        statusLabel.Text = reports.Count > 0
-                            ? $"{reports.Count} riport betöltve."
-                            : "A kiválasztott munkaterületen nincs riport.";
-                    }
+                        statusLabel.Text = BuildReportsStatusText(snapshot.Reports.Count, snapshot.LoadWarnings);
                 }
                 catch (Exception ex)
                 {
@@ -284,89 +176,15 @@ namespace RefreshVIR
             });
         }
 
-        private void BindReports(IReadOnlyList<PowerBiReportInfo> reports)
-        {
-            reportsGrid.DataSource = null;
-            reportsGrid.Columns.Clear();
-            reportsGrid.AutoGenerateColumns = false;
+        private void BindReports(IReadOnlyList<PowerBiReportInfo> reports) =>
+            PowerBiReportsGridBinder.Bind(reportsGrid, reports);
 
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.ReportName),
-                HeaderText = "Riport neve",
-                FillWeight = 180
-            });
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.DataSourceDisplay),
-                HeaderText = "Adatforrás",
-                FillWeight = 140
-            });
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.ReportType),
-                HeaderText = "Típus",
-                FillWeight = 110
-            });
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.LastUploadDisplay),
-                HeaderText = "Utolsó feltöltés",
-                FillWeight = 120
-            });
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.LastRefreshDisplay),
-                HeaderText = "Utolsó adatfrissítés",
-                FillWeight = 120
-            });
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.NextRefreshDisplay),
-                HeaderText = "Következő adatfrissítés",
-                FillWeight = 120
-            });
-            reportsGrid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = nameof(PowerBiReportInfo.ScheduleDisplay),
-                HeaderText = "Ütemezés",
-                FillWeight = 90
-            });
-
-            reportsGrid.DataSource = reports.ToList();
-        }
-
-        private void ReportsGrid_DataBindingComplete(object? sender, DataGridViewBindingCompleteEventArgs e)
-        {
-            foreach (DataGridViewRow row in reportsGrid.Rows)
-            {
-                if (row.DataBoundItem is not PowerBiReportInfo report)
-                    continue;
-
-                if (report.HasEmbeddedReportData)
-                {
-                    row.DefaultCellStyle.BackColor = Color.LightGoldenrodYellow;
-                    row.DefaultCellStyle.SelectionBackColor = Color.Khaki;
-                    row.DefaultCellStyle.SelectionForeColor = Color.Black;
-                }
-                else if (report.RefreshDisabled)
-                {
-                    row.DefaultCellStyle.BackColor = Color.MistyRose;
-                    row.DefaultCellStyle.SelectionBackColor = Color.LightCoral;
-                    row.DefaultCellStyle.SelectionForeColor = Color.Black;
-                }
-                else
-                {
-                    row.DefaultCellStyle.BackColor = reportsGrid.DefaultCellStyle.BackColor;
-                    row.DefaultCellStyle.SelectionBackColor = Color.LightBlue;
-                    row.DefaultCellStyle.SelectionForeColor = Color.Black;
-                }
-            }
-        }
+        private void ReportsGrid_DataBindingComplete(object? sender, DataGridViewBindingCompleteEventArgs e) =>
+            PowerBiReportsGridBinder.ApplyRowStyles(reportsGrid);
 
         private void BrowseButton_Click(object? sender, EventArgs e)
         {
-            LogPowerBiAction("Tallózás gomb megnyomva");
+            PowerBiActionLogger.Log("Tallózás gomb megnyomva");
 
             using OpenFileDialog dialog = new OpenFileDialog
             {
@@ -377,258 +195,195 @@ namespace RefreshVIR
             if (dialog.ShowDialog(this) == DialogResult.OK)
             {
                 filePathTextBox.Text = dialog.FileName;
-                LogPowerBiAction(
+                PowerBiActionLogger.Log(
                     "PBIX fájl kiválasztva",
                     pbixPath: dialog.FileName);
             }
             else
             {
-                LogPowerBiAction("PBIX tallózás megszakítva");
+                PowerBiActionLogger.Log("PBIX tallózás megszakítva");
             }
         }
 
         private void CloseButton_Click(object? sender, EventArgs e)
         {
-            LogPowerBiAction("Vissza gomb megnyomva");
+            PowerBiActionLogger.Log("Vissza gomb megnyomva");
             Close();
-        }
-
-        private void LogPowerBiAction(
-            string action,
-            PowerBiWorkspace? workspace = null,
-            string? reportName = null,
-            string? pbixPath = null,
-            string? detail = null)
-        {
-            workspace ??= workspaceComboBox.SelectedItem as PowerBiWorkspace;
-            pbixPath ??= string.IsNullOrWhiteSpace(filePathTextBox.Text)
-                ? null
-                : filePathTextBox.Text;
-            reportName ??= pbixPath == null
-                ? null
-                : Path.GetFileNameWithoutExtension(pbixPath);
-
-            List<string> parts = new() { action };
-
-            if (!string.IsNullOrWhiteSpace(reportName))
-                parts.Add($"riport={reportName}");
-
-            if (!string.IsNullOrWhiteSpace(pbixPath))
-                parts.Add($"pbix={pbixPath}");
-
-            if (workspace != null)
-                parts.Add($"munkaterület={workspace.Name}");
-
-            if (!string.IsNullOrWhiteSpace(detail))
-                parts.Add(detail);
-
-            SQLUtils.LogAction(string.Join(" | ", parts));
         }
 
         private async void PublishButton_Click(object? sender, EventArgs e)
         {
+            if (!TryBuildPublishRequest(out PowerBiPublishRequest request, out string? validationMessage))
+            {
+                if (validationMessage != null)
+                {
+                    MessageBox.Show(
+                        validationMessage,
+                        "Figyelmeztetés",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+
+                return;
+            }
+
+            PowerBiActionLogger.Log(
+                "Publikálás gomb megnyomva",
+                request.Workspace,
+                request.ReportName,
+                request.PbixPath);
+
+            if (!Authorization.ConfirmAllowedToPublishPowerBiReports(this))
+            {
+                PowerBiActionLogger.Log(
+                    "Publikálás elutasítva",
+                    request.Workspace,
+                    request.ReportName,
+                    request.PbixPath,
+                    "ok=nincs jogosultság");
+                return;
+            }
+
+            PowerBiExistingReportInfo? existingReport =
+                PowerBiPublishWorkflow.TryGetExistingReportFromSnapshot(request)
+                ?? await RunWithWaitCursorAsync(() =>
+                    PowerBiPublishWorkflow.GetExistingReportAsync(request));
+
+            if (existingReport == null)
+            {
+                await HandleMissingReportAsync(request);
+                return;
+            }
+
+            if (MessageBox.Show(
+                    existingReport.BuildConfirmationMessage(request.Workspace.Name),
+                    "Power BI riport frissítése",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                PowerBiActionLogger.Log(
+                    "Publikálás megszakítva",
+                    request.Workspace,
+                    request.ReportName,
+                    request.PbixPath,
+                    "ok=felhasználó elutasította");
+                return;
+            }
+
+            await ExecutePublishFlowAsync(request);
+        }
+
+        private bool TryBuildPublishRequest(
+            out PowerBiPublishRequest request,
+            out string? validationMessage)
+        {
+            request = null!;
+            validationMessage = null;
+
             PowerBiWorkspace? selectedWorkspace =
                 workspaceComboBox.SelectedItem as PowerBiWorkspace;
             string? pbixPath = string.IsNullOrWhiteSpace(filePathTextBox.Text)
                 ? null
                 : filePathTextBox.Text;
-            string? reportName = pbixPath == null
-                ? null
-                : Path.GetFileNameWithoutExtension(pbixPath);
 
-            LogPowerBiAction(
-                "Publikálás gomb megnyomva",
-                selectedWorkspace,
-                reportName,
-                pbixPath);
-
-            if (!Authorization.ConfirmAllowedToPublishPowerBiReports(this))
+            if (string.IsNullOrWhiteSpace(pbixPath))
             {
-                LogPowerBiAction(
-                    "Publikálás elutasítva",
-                    selectedWorkspace,
-                    reportName,
-                    pbixPath,
-                    "ok=nincs jogosultság");
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(filePathTextBox.Text))
-            {
-                LogPowerBiAction(
+                PowerBiActionLogger.Log(
                     "Publikálás elutasítva",
                     selectedWorkspace,
                     detail: "ok=PBIX fájl nincs kiválasztva");
-                MessageBox.Show(
-                    "Válassz ki egy PBIX fájlt.",
-                    "Figyelmeztetés",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
+                validationMessage = "Válassz ki egy PBIX fájlt.";
+                return false;
             }
 
             if (selectedWorkspace is not PowerBiWorkspace workspace)
             {
-                LogPowerBiAction(
+                PowerBiActionLogger.Log(
                     "Publikálás elutasítva",
-                    reportName: reportName,
+                    reportName: Path.GetFileNameWithoutExtension(pbixPath),
                     pbixPath: pbixPath,
                     detail: "ok=munkaterület nincs kiválasztva");
-                MessageBox.Show(
-                    "Válassz ki egy munkaterületet.",
-                    "Figyelmeztetés",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
+                validationMessage = "Válassz ki egy munkaterületet.";
+                return false;
             }
 
-            reportName = Path.GetFileNameWithoutExtension(filePathTextBox.Text);
-
-            PowerBiExistingReportInfo? existingReport = await RunWithWaitCursorAsync(() =>
-                PowerBIService.GetExistingReportAsync(workspace.Id, reportName));
-
-            if (existingReport == null)
+            request = new PowerBiPublishRequest
             {
-                LogPowerBiAction(
-                    "Publikálás elutasítva",
-                    workspace,
-                    reportName,
-                    filePathTextBox.Text,
-                    "ok=riport nem található a munkaterületen");
+                Session = RequirePowerBiSession(),
+                Workspace = workspace,
+                PbixPath = pbixPath,
+                ReportName = Path.GetFileNameWithoutExtension(pbixPath),
+                Snapshot = _currentSnapshot
+            };
 
-                string summary =
-                    $"A(z) '{reportName}' nevű riport nem található a '{workspace.Name}' munkaterületen.\n\n" +
-                    "Az alkalmazás csak meglévő riportok frissítését támogatja.";
+            return true;
+        }
 
-                ErrorDialog.ShowError(this, "Riport nem található", summary, report =>
-                {
-                    report.Add("Report name", reportName);
-                    report.Add("Workspace", workspace.Name);
-                    report.Add("Workspace ID", workspace.Id.ToString());
-                    report.Add("PBIX file", filePathTextBox.Text);
-                });
-                return;
-            }
+        private Task HandleMissingReportAsync(PowerBiPublishRequest request)
+        {
+            PowerBiActionLogger.Log(
+                "Publikálás elutasítva",
+                request.Workspace,
+                request.ReportName,
+                request.PbixPath,
+                "ok=riport nem található a munkaterületen");
 
-            var confirm = MessageBox.Show(
-                existingReport.BuildConfirmationMessage(workspace.Name),
-                "Power BI riport frissítése",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
+            string summary =
+                $"A(z) '{request.ReportName}' nevű riport nem található a '{request.Workspace.Name}' munkaterületen.\n\n" +
+                "Az alkalmazás csak meglévő riportok frissítését támogatja.";
 
-            if (confirm != DialogResult.Yes)
+            ErrorDialog.ShowError(this, "Riport nem található", summary, report =>
             {
-                LogPowerBiAction(
-                    "Publikálás megszakítva",
-                    workspace,
-                    reportName,
-                    filePathTextBox.Text,
-                    "ok=felhasználó elutasította");
-                return;
-            }
+                report.Add("Report name", request.ReportName);
+                report.Add("Workspace", request.Workspace.Name);
+                report.Add("Workspace ID", request.Workspace.Id.ToString());
+                report.Add("PBIX file", request.PbixPath);
+            });
 
-            LogPowerBiAction(
+            return Task.CompletedTask;
+        }
+
+        private async Task ExecutePublishFlowAsync(PowerBiPublishRequest request)
+        {
+            PowerBiActionLogger.Log(
                 "Power BI riport frissítés indítva",
-                workspace,
-                reportName,
-                filePathTextBox.Text);
+                request.Workspace,
+                request.ReportName,
+                request.PbixPath);
 
-            IProgress<string> progress = CreateStatusProgress();
-
-            publishButton.Enabled = false;
-            browseButton.Enabled = false;
-            workspaceComboBox.Enabled = false;
+            request.Progress = CreateStatusProgress();
+            SetPublishControlsEnabled(false);
 
             try
             {
                 await RunWithWaitCursorAsync(async () =>
-                {
-                    await PowerBIService.PublishPbixAsync(
-                        workspace.Id,
-                        filePathTextBox.Text,
-                        progress);
-                });
+                    await PowerBiPublishWorkflow.PublishReportAsync(request));
 
-                LogPowerBiAction(
+                PowerBiActionLogger.Log(
                     "Power BI riport frissítés sikeres",
-                    workspace,
-                    reportName,
-                    filePathTextBox.Text);
+                    request.Workspace,
+                    request.ReportName,
+                    request.PbixPath);
 
-                await LoadReportsAsync(workspace, updateStatus: false);
+                await RefreshReportGridAfterPublishAsync(request.Workspace);
                 SetStatusText("Publikálás kész.");
 
-                DialogResult updateApp = MessageBox.Show(
-                    $"A(z) '{reportName}' riport sikeresen frissítve a '{workspace.Name}' munkaterületen.\n\n" +
-                    "Szeretnéd frissíteni a munkaterület appját is?",
-                    "Riport frissítve",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-
-                if (updateApp == DialogResult.Yes)
+                if (MessageBox.Show(
+                        $"A(z) '{request.ReportName}' riport sikeresen frissítve a '{request.Workspace.Name}' munkaterületen.\n\n" +
+                        "Szeretnéd frissíteni a munkaterület appját is?",
+                        "Riport frissítve",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question) == DialogResult.Yes)
                 {
-                    LogPowerBiAction(
-                        "Power BI app frissítés indítva",
-                        workspace,
-                        reportName,
-                        filePathTextBox.Text);
-
-                    SetStatusText("App frissítése...");
-
-                    try
-                    {
-                        await RunWithWaitCursorAsync(async () =>
-                        {
-                            await PowerBIService.UpdateWorkspaceAppAsync(workspace.Id, progress);
-                        });
-
-                        LogPowerBiAction(
-                            "Power BI app frissítés sikeres",
-                            workspace,
-                            reportName,
-                            filePathTextBox.Text);
-                        SetStatusText("App frissítés kész.");
-
-                        MessageBox.Show(
-                            $"A(z) '{workspace.Name}' munkaterület appja sikeresen frissítve.",
-                            "App frissítve",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Information);
-                    }
-                    catch (Exception appEx)
-                    {
-                        LogPowerBiAction(
-                            "Power BI app frissítés sikertelen",
-                            workspace,
-                            reportName,
-                            filePathTextBox.Text,
-                            $"hiba={appEx.Message}");
-
-                        ShowErrorMessage(
-                            appEx.Message,
-                            "App frissítés sikertelen",
-                            appEx,
-                            report =>
-                            {
-                                report.Add("Operation", "Power BI app update");
-                                report.Add("Workspace", workspace.Name);
-                                report.Add("Workspace ID", workspace.Id.ToString());
-                                report.Add("Report name", reportName);
-                                report.Add("PBIX file", filePathTextBox.Text);
-                                report.Add("Status line", statusLabel.Text);
-                            });
-
-                        SetStatusText("App telepítés sikertelen.");
-                        return;
-                    }
+                    await ExecuteAppUpdateAsync(request);
                 }
                 else
                 {
-                    LogPowerBiAction(
+                    PowerBiActionLogger.Log(
                         "Power BI app frissítés elutasítva",
-                        workspace,
-                        reportName,
-                        filePathTextBox.Text,
+                        request.Workspace,
+                        request.ReportName,
+                        request.PbixPath,
                         "ok=felhasználó elutasította");
                 }
 
@@ -636,11 +391,11 @@ namespace RefreshVIR
             }
             catch (Exception ex)
             {
-                LogPowerBiAction(
+                PowerBiActionLogger.Log(
                     "Power BI riport frissítés sikertelen",
-                    workspace,
-                    reportName,
-                    filePathTextBox.Text,
+                    request.Workspace,
+                    request.ReportName,
+                    request.PbixPath,
                     $"hiba={ex.Message}");
 
                 ShowErrorMessage(
@@ -650,20 +405,85 @@ namespace RefreshVIR
                     report =>
                     {
                         report.Add("Operation", "Power BI report publish");
-                        report.Add("Report name", reportName);
-                        report.Add("Workspace", workspace.Name);
-                        report.Add("Workspace ID", workspace.Id.ToString());
-                        report.Add("PBIX file", filePathTextBox.Text);
+                        report.Add("Report name", request.ReportName);
+                        report.Add("Workspace", request.Workspace.Name);
+                        report.Add("Workspace ID", request.Workspace.Id.ToString());
+                        report.Add("PBIX file", request.PbixPath);
                         report.Add("Status line", statusLabel.Text);
                     });
             }
             finally
             {
                 ClearWaitCursor();
-                publishButton.Enabled = true;
-                browseButton.Enabled = true;
-                workspaceComboBox.Enabled = true;
+                SetPublishControlsEnabled(true);
             }
+        }
+
+        private async Task ExecuteAppUpdateAsync(PowerBiPublishRequest request)
+        {
+            PowerBiActionLogger.Log(
+                "Power BI app frissítés indítva",
+                request.Workspace,
+                request.ReportName,
+                request.PbixPath);
+
+            request.AppUpdateProgress = CreateAppUpdateProgress();
+            ShowAppUpdateProgress(0);
+
+            try
+            {
+                await RunWithWaitCursorAsync(async () =>
+                    await PowerBiPublishWorkflow.UpdateWorkspaceAppAsync(request));
+
+                PowerBiActionLogger.Log(
+                    "Power BI app frissítés sikeres",
+                    request.Workspace,
+                    request.ReportName,
+                    request.PbixPath);
+                SetAppUpdateProgress(100, "App frissítés kész.");
+
+                MessageBox.Show(
+                    $"A(z) '{request.Workspace.Name}' munkaterület appja sikeresen frissítve.",
+                    "App frissítve",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception appEx)
+            {
+                PowerBiActionLogger.Log(
+                    "Power BI app frissítés sikertelen",
+                    request.Workspace,
+                    request.ReportName,
+                    request.PbixPath,
+                    $"hiba={appEx.Message}");
+
+                ShowErrorMessage(
+                    appEx.Message,
+                    "App frissítés sikertelen",
+                    appEx,
+                    report =>
+                    {
+                        report.Add("Operation", "Power BI app update");
+                        report.Add("Workspace", request.Workspace.Name);
+                        report.Add("Workspace ID", request.Workspace.Id.ToString());
+                        report.Add("Report name", request.ReportName);
+                        report.Add("PBIX file", request.PbixPath);
+                        report.Add("Status line", statusLabel.Text);
+                    });
+
+                SetStatusText("App telepítés sikertelen.");
+            }
+            finally
+            {
+                HideAppUpdateProgress();
+            }
+        }
+
+        private void SetPublishControlsEnabled(bool enabled)
+        {
+            publishButton.Enabled = enabled && workspaces.Count > 0;
+            browseButton.Enabled = enabled;
+            workspaceComboBox.Enabled = enabled && workspaces.Count > 0;
         }
 
         private void BeginWaitCursor()
@@ -721,6 +541,52 @@ namespace RefreshVIR
         private IProgress<string> CreateStatusProgress() =>
             new Progress<string>(SetStatusText);
 
+        private IProgress<AppUpdateProgressReport> CreateAppUpdateProgress() =>
+            new Progress<AppUpdateProgressReport>(report => SetAppUpdateProgress(report.Percent, report.Message));
+
+        private void ShowAppUpdateProgress(int percent)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(ShowAppUpdateProgress, percent);
+                return;
+            }
+
+            appUpdateProgressBar.Visible = true;
+            appUpdateProgressBar.Value = Math.Clamp(percent, 0, 100);
+        }
+
+        private void SetAppUpdateProgress(int percent, string message)
+        {
+            if (IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(SetAppUpdateProgress, percent, message);
+                return;
+            }
+
+            appUpdateProgressBar.Visible = true;
+            appUpdateProgressBar.Value = Math.Clamp(percent, 0, 100);
+            statusLabel.Text = message;
+        }
+
+        private void HideAppUpdateProgress()
+        {
+            if (IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(HideAppUpdateProgress);
+                return;
+            }
+
+            appUpdateProgressBar.Visible = false;
+            appUpdateProgressBar.Value = 0;
+        }
+
         private void SetStatusText(string message)
         {
             if (IsDisposed)
@@ -758,9 +624,42 @@ namespace RefreshVIR
             ResetWaitCursor();
         }
 
+        private async Task RefreshReportGridAfterPublishAsync(PowerBiWorkspace workspace)
+        {
+            if (_currentSnapshot != null && _currentSnapshot.WorkspaceId == workspace.Id)
+            {
+                _currentSnapshot = await PowerBiPublishWorkflow.RefreshAfterPublishAsync(
+                    RequirePowerBiSession(),
+                    _currentSnapshot);
+                BindReports(_currentSnapshot.Reports);
+                return;
+            }
+
+            await LoadReportsAsync(workspace, updateStatus: false);
+        }
+
+        private PowerBiSession RequirePowerBiSession() =>
+            _powerBiSession
+            ?? throw new InvalidOperationException("Power BI munkamenet nem elérhető.");
+
+        private static string BuildReportsStatusText(int reportCount, IReadOnlyList<string> loadWarnings)
+        {
+            string statusText = reportCount > 0
+                ? $"{reportCount} riport betöltve."
+                : "A kiválasztott munkaterületen nincs riport.";
+
+            if (loadWarnings.Count == 0)
+                return statusText;
+
+            return $"{statusText} {string.Join(" ", loadWarnings)}";
+        }
+
         private void PowerBIPublishForm_FormClosed(object? sender, FormClosedEventArgs e)
         {
-            LogPowerBiAction("Power BI publikálás ablak bezárva");
+            _powerBiSession?.Dispose();
+            _powerBiSession = null;
+            _currentSnapshot = null;
+            PowerBiActionLogger.Log("Power BI publikálás ablak bezárva");
         }
     }
 }

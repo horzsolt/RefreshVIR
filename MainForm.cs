@@ -6,6 +6,7 @@ namespace RefreshVIR
         public MainForm()
         {
             InitializeComponent();
+            ApplicationBrand.Apply(this);
             ApplyCaption();
             this.KeyDown += MainForm_KeyDown;
             this.FormClosed += MainForm_FormClosed;

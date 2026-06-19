@@ -16,6 +16,8 @@ namespace RefreshVIR
 
     internal sealed class PowerBiReportInfo
     {
+        public Guid ReportId { get; init; }
+        public Guid DatasetId { get; init; }
         public string ReportName { get; init; } = "";
         public string DatasetName { get; init; } = "";
         public string ReportType { get; init; } = "";
@@ -58,6 +60,17 @@ namespace RefreshVIR
         public DateTime? LastRefreshLocal { get; init; }
         public bool HasEmbeddedReportData { get; init; }
 
+        internal static PowerBiExistingReportInfo FromReportInfo(PowerBiReportInfo report) =>
+            new()
+            {
+                ReportName = report.ReportName,
+                ReportType = report.ReportType,
+                DataSourceDisplay = report.DataSourceDisplay,
+                LastUploadLocal = report.LastUploadLocal,
+                LastRefreshLocal = report.LastRefreshLocal,
+                HasEmbeddedReportData = report.HasEmbeddedReportData
+            };
+
         public string BuildConfirmationMessage(string workspaceName)
         {
             StringBuilder text = new();
@@ -75,5 +88,25 @@ namespace RefreshVIR
 
         private static string FormatDateTime(DateTime? value) =>
             value?.ToString("yyyy.MM.dd HH:mm", CultureInfo.CurrentCulture) ?? "—";
+    }
+
+    internal sealed class PowerBiWorkspaceSnapshot
+    {
+        public Guid WorkspaceId { get; init; }
+        public DateTime LoadedAt { get; init; }
+        public IReadOnlyList<PowerBiReportInfo> Reports { get; init; } = Array.Empty<PowerBiReportInfo>();
+        public IReadOnlyDictionary<string, PowerBiReportInfo> ReportsByName { get; init; } =
+            new Dictionary<string, PowerBiReportInfo>(StringComparer.OrdinalIgnoreCase);
+        public IReadOnlyList<string> LoadWarnings { get; init; } = Array.Empty<string>();
+
+        public PowerBiReportInfo? TryGetReportByName(string reportName) =>
+            ReportsByName.TryGetValue(reportName, out PowerBiReportInfo? report)
+                ? report
+                : null;
+
+        public PowerBiExistingReportInfo? TryGetExistingReportByName(string reportName) =>
+            TryGetReportByName(reportName) is PowerBiReportInfo report
+                ? PowerBiExistingReportInfo.FromReportInfo(report)
+                : null;
     }
 }

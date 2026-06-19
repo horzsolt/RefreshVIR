@@ -175,7 +175,7 @@ namespace RefreshVIR
                     cmdAvg.Parameters.AddWithValue("@JobName", jobName);
                     object result = cmdAvg.ExecuteScalar();
                     if (result != DBNull.Value && result != null)
-                        avgSeconds = ConvertDurationToSeconds(Convert.ToInt32(result));
+                        avgSeconds = SqlAgentDurationParser.ToTotalSeconds(Convert.ToInt32(result));
                 }
 
                 // --- Get all executions from the last 7 days ---
@@ -200,22 +200,11 @@ namespace RefreshVIR
                             string nextSch = nextSchedule.HasValue ? nextSchedule.Value.ToString("yyyy-MM-dd HH:mm") : "";
 
                             int lastDur = reader[1] != DBNull.Value ? Convert.ToInt32(reader[1]) : 0;
-                            double lastSeconds = ConvertDurationToSeconds(lastDur);
+                            double lastSeconds = SqlAgentDurationParser.ToTotalSeconds(lastDur);
 
-                            string lastStatus = "Unknown";
-                            if (reader[2] != DBNull.Value)
-                            {
-                                int status = Convert.ToInt32(reader[2]);
-                                lastStatus = status switch
-                                {
-                                    0 => "Failed",
-                                    1 => "Succeeded",
-                                    2 => "Retry",
-                                    3 => "Canceled",
-                                    4 => "In Progress",
-                                    _ => "Unknown"
-                                };
-                            }
+                            string lastStatus = reader[2] != DBNull.Value
+                                ? SqlAgentStatusMapper.ToDisplayName(Convert.ToInt32(reader[2]))
+                                : "Unknown";
 
                             dt.Rows.Add(
                                 execTime,
@@ -245,7 +234,7 @@ namespace RefreshVIR
             dt.Columns.Add("Utoljára befejeződött");
             dt.Columns.Add("Következő futás");
             dt.Columns.Add("Utolsó futás időtartama");
-            dt.Columns.Add("Átlagos futás időtartamaí");
+            dt.Columns.Add("Átlagos futás időtartama");
             dt.Columns.Add("Utolsó futás státusza");
             dt.Columns.Add("Jelenlegi státusz");
             dt.Columns.Add("Jelenlegi futási idő");
@@ -311,18 +300,8 @@ namespace RefreshVIR
 
                                 // status
                                 if (reader["run_status"] != DBNull.Value)
-                                {
-                                    int status = Convert.ToInt32(reader["run_status"]);
-                                    lastStatus = status switch
-                                    {
-                                        0 => "Failed",
-                                        1 => "Succeeded",
-                                        2 => "Retry",
-                                        3 => "Canceled",
-                                        4 => "In Progress",
-                                        _ => "Unknown"
-                                    };
-                                }
+                                    lastStatus = SqlAgentStatusMapper.ToDisplayName(
+                                        Convert.ToInt32(reader["run_status"]));
 
                                 if (reader["start_execution_date"] != DBNull.Value &&
                                     reader["stop_execution_date"] == DBNull.Value)
@@ -333,8 +312,8 @@ namespace RefreshVIR
                                         Convert.ToDateTime(reader["start_execution_date"]);
 
                                     TimeSpan runtime = DateTime.Now - startExecution;
-                                    currentRunTime = runtime.ToString(@"dd\.hh\:mm\:ss");
-                                    currentRunTime = $"{runtime.Days} nap {runtime.Hours} óra {runtime.Minutes} perc";
+                                    currentRunTime =
+                                        $"{runtime.Days} nap {runtime.Hours} óra {runtime.Minutes} perc";
                                 }
 
                                 // last run time
@@ -355,31 +334,15 @@ namespace RefreshVIR
                                     if (reader["run_duration"] != DBNull.Value)
                                     {
                                         int dur = Convert.ToInt32(reader["run_duration"]);
-
-                                        int hh = dur / 10000;
-                                        int mm = (dur / 100) % 100;
-                                        int ss = dur % 100;
-
-                                        DateTime finishTime = lastExec
-                                            .AddHours(hh)
-                                            .AddMinutes(mm)
-                                            .AddSeconds(ss);
-
+                                        DateTime finishTime = SqlAgentDurationParser.AddToDateTime(lastExec, dur);
                                         lastFinishTime = finishTime.ToString("yyyy-MM-dd HH:mm:ss");
                                     }
                                 }
 
-
-                                // duration HHMMSS → seconds
                                 if (reader["run_duration"] != DBNull.Value)
                                 {
                                     int dur = Convert.ToInt32(reader["run_duration"]);
-
-                                    int hh = dur / 10000;
-                                    int mm = (dur / 100) % 100;
-                                    int ss = dur % 100;
-
-                                    lastExecutionSeconds = (hh * 3600) + (mm * 60) + ss;
+                                    lastExecutionSeconds = SqlAgentDurationParser.ToTotalSeconds(dur);
                                 }
                             }
                         }
@@ -454,38 +417,31 @@ namespace RefreshVIR
                 : "0 perc";
         }
 
-        private static double ConvertDurationToSeconds(int runDuration)
-        {
-            int hh = runDuration / 10000;
-            int mm = (runDuration % 10000) / 100;
-            int ss = runDuration % 100;
-            return hh * 3600 + mm * 60 + ss;
-        }
-
         public static List<JobExecution> GetJobExecutionHistory(
             string connectionString,
             Dictionary<string, string> jobs,
             int historyDays)
         {
-            List<JobExecution> result =
-                new List<JobExecution>();
+            List<JobExecution> result = new List<JobExecution>();
+
+            if (jobs.Count == 0)
+                return result;
 
             DateTime fromTime = historyDays == 1
                 ? DateTime.Today.AddDays(-1).AddHours(19)
                 : DateTime.Today.AddDays(-7);
 
-            using SqlConnection conn =
-                new SqlConnection(connectionString);
+            List<string> jobNames = jobs.Keys.ToList();
+            List<string> parameterNames = jobNames
+                .Select((_, index) => $"@JobName{index}")
+                .ToList();
 
+            using SqlConnection conn = new SqlConnection(connectionString);
             conn.Open();
 
-            foreach (var kvp in jobs)
-            {
-                string jobName = kvp.Key;
-
-                using SqlCommand cmd =
-                    new SqlCommand(@"
+            string sql = $@"
 SELECT
+    j.name AS JobName,
     h.run_date,
     h.run_time,
     h.run_duration,
@@ -493,60 +449,44 @@ SELECT
 FROM msdb.dbo.sysjobs j
 JOIN msdb.dbo.sysjobhistory h
     ON j.job_id = h.job_id
-WHERE j.name = @JobName
+WHERE j.name IN ({string.Join(", ", parameterNames)})
   AND h.step_id = 0
-ORDER BY h.run_date, h.run_time", conn);
+ORDER BY j.name, h.run_date, h.run_time";
 
-                cmd.Parameters.AddWithValue(
-                    "@JobName",
-                    jobName);
+            using SqlCommand cmd = new SqlCommand(sql, conn);
+            for (int i = 0; i < jobNames.Count; i++)
+                cmd.Parameters.AddWithValue(parameterNames[i], jobNames[i]);
 
-                using SqlDataReader reader =
-                    cmd.ExecuteReader();
+            using SqlDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                string jobName = reader.GetString(0);
+                string displayName = jobs.TryGetValue(jobName, out string? label) && !string.IsNullOrWhiteSpace(label)
+                    ? label
+                    : jobName;
 
-                while (reader.Read())
+                int runDate = Convert.ToInt32(reader["run_date"]);
+                int runTime = Convert.ToInt32(reader["run_time"]);
+                int duration = Convert.ToInt32(reader["run_duration"]);
+
+                string dtStr = runDate.ToString() + runTime.ToString("D6");
+                DateTime startTime = DateTime.ParseExact(
+                    dtStr,
+                    "yyyyMMddHHmmss",
+                    null);
+
+                if (startTime < fromTime)
+                    continue;
+
+                DateTime finishTime = SqlAgentDurationParser.AddToDateTime(startTime, duration);
+
+                result.Add(new JobExecution
                 {
-                    int runDate =
-                        Convert.ToInt32(reader["run_date"]);
-
-                    int runTime =
-                        Convert.ToInt32(reader["run_time"]);
-
-                    int duration =
-                        Convert.ToInt32(reader["run_duration"]);
-
-                    string dtStr =
-                        runDate.ToString() +
-                        runTime.ToString("D6");
-
-                    DateTime startTime =
-                        DateTime.ParseExact(
-                            dtStr,
-                            "yyyyMMddHHmmss",
-                            null);
-
-                    if (startTime < fromTime)
-                        continue;
-
-                    int hh = duration / 10000;
-                    int mm = (duration / 100) % 100;
-                    int ss = duration % 100;
-
-                    DateTime finishTime =
-                        startTime
-                            .AddHours(hh)
-                            .AddMinutes(mm)
-                            .AddSeconds(ss);
-
-                    result.Add(new JobExecution
-                    {
-                        JobName = kvp.Value,
-                        StartTime = startTime,
-                        FinishTime = finishTime,
-                        RunStatus =
-                            Convert.ToInt32(reader["run_status"])
-                    });
-                }
+                    JobName = displayName,
+                    StartTime = startTime,
+                    FinishTime = finishTime,
+                    RunStatus = Convert.ToInt32(reader["run_status"])
+                });
             }
 
             return result;

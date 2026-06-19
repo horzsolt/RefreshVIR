@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace RefreshVIR
@@ -91,6 +92,111 @@ namespace RefreshVIR
                 : null;
         }
 
+        internal static async Task WaitForWorkspaceRefreshesToCompleteAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            AppUpdateProgressTracker? tracker = null,
+            TimeSpan? timeout = null)
+        {
+            TimeSpan waitTimeout = timeout ?? TimeSpan.FromMinutes(15);
+            TimeSpan pollInterval = TimeSpan.FromSeconds(5);
+            DateTime deadline = DateTime.UtcNow + waitTimeout;
+
+            List<DatasetItem> datasets = await PowerBiGroupApi.GetDatasetsAsync(httpClient, workspaceId);
+            List<DatasetItem> refreshableDatasets = datasets
+                .Where(dataset => dataset.IsRefreshable != false)
+                .ToList();
+
+            if (refreshableDatasets.Count == 0)
+                return;
+
+            int pollCount = 0;
+            while (DateTime.UtcNow < deadline)
+            {
+                List<string> inProgressNames = new();
+
+                foreach (DatasetItem dataset in refreshableDatasets)
+                {
+                    if (await IsDatasetRefreshInProgressAsync(httpClient, workspaceId, dataset.Id))
+                    {
+                        inProgressNames.Add(
+                            string.IsNullOrWhiteSpace(dataset.Name)
+                                ? dataset.Id.ToString()
+                                : dataset.Name);
+                    }
+                }
+
+                if (inProgressNames.Count == 0)
+                {
+                    tracker?.Report("Adatmodellek készen állnak az app frissítéshez.");
+                    return;
+                }
+
+                pollCount++;
+                int waitPercent = Math.Clamp(pollCount * 10, 10, 90);
+                tracker?.Report(
+                    $"Adatmodell frissítés folyamatban ({string.Join(", ", inProgressNames)})...",
+                    waitPercent);
+                await Task.Delay(pollInterval);
+            }
+
+            throw new TimeoutException(
+                "Az adatmodell frissítése túllépte az időkorlátot. " +
+                "Várj, amíg a frissítés befejeződik, majd próbáld újra az app frissítést.");
+        }
+
+        internal static async Task<bool> IsDatasetRefreshInProgressAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            Guid datasetId)
+        {
+            RefreshHistoryItem? latest =
+                await TryGetLatestRefreshAsync(httpClient, workspaceId, datasetId);
+
+            return latest != null && IsRefreshInProgress(latest);
+        }
+
+        private static async Task<RefreshHistoryItem?> TryGetLatestRefreshAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            Guid datasetId)
+        {
+            using HttpResponseMessage response =
+                await httpClient.GetAsync($"groups/{workspaceId}/datasets/{datasetId}/refreshes?$top=1");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            string body = await response.Content.ReadAsStringAsync();
+            RefreshesResponse? refreshes =
+                JsonSerializer.Deserialize<RefreshesResponse>(body, PowerBiApiClient.JsonOptions);
+
+            return refreshes?.Value.FirstOrDefault();
+        }
+
+        private static bool IsRefreshInProgress(RefreshHistoryItem refresh)
+        {
+            if (!string.IsNullOrWhiteSpace(refresh.Status))
+            {
+                if (string.Equals(refresh.Status, "InProgress", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(refresh.Status, "Unknown", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (string.Equals(refresh.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(refresh.Status, "Failed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(refresh.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(refresh.Status, "TimedOut", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(refresh.Status, "Disabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return string.IsNullOrWhiteSpace(refresh.EndTime);
+        }
+
         internal static bool HasEmbeddedReportData(
             Guid datasetId,
             DatasetItem? dataset,
@@ -114,6 +220,95 @@ namespace RefreshVIR
                 return false;
 
             return !UsesExternalDataConnection(dataset);
+        }
+
+        internal static async Task<RefreshScheduleSnapshot?> TryDisableRefreshScheduleForPublishAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            Guid datasetId)
+        {
+            RefreshSchedule? schedule = await TryGetRefreshScheduleAsync(httpClient, workspaceId, datasetId);
+            if (schedule == null || !schedule.Enabled)
+                return null;
+
+            await DisableRefreshScheduleAsync(httpClient, workspaceId, datasetId);
+
+            return new RefreshScheduleSnapshot
+            {
+                WasDisabledForPublish = true,
+                Schedule = CloneRefreshSchedule(schedule)
+            };
+        }
+
+        internal static async Task RestoreRefreshScheduleAfterPublishAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            Guid datasetId,
+            RefreshScheduleSnapshot? snapshot)
+        {
+            if (snapshot?.WasDisabledForPublish != true)
+                return;
+
+            await PatchRefreshScheduleAsync(httpClient, workspaceId, datasetId, snapshot.Schedule);
+        }
+
+        private static async Task DisableRefreshScheduleAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            Guid datasetId)
+        {
+            // Power BI rejects disable requests that include any field besides enabled.
+            const string json = """{"value":{"enabled":false}}""";
+
+            using HttpRequestMessage httpRequest = new(
+                HttpMethod.Patch,
+                $"groups/{workspaceId}/datasets/{datasetId}/refreshSchedule")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            using HttpResponseMessage response = await httpClient.SendAsync(httpRequest);
+            string body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"Adatmodell frissítési ütemezés kikapcsolása sikertelen ({(int)response.StatusCode}): {body}");
+            }
+        }
+
+        private static RefreshSchedule CloneRefreshSchedule(RefreshSchedule schedule) =>
+            new()
+            {
+                Days = schedule.Days.ToList(),
+                Times = schedule.Times.ToList(),
+                Enabled = schedule.Enabled,
+                LocalTimeZoneId = schedule.LocalTimeZoneId,
+                NotifyOption = schedule.NotifyOption
+            };
+
+        private static async Task PatchRefreshScheduleAsync(
+            HttpClient httpClient,
+            Guid workspaceId,
+            Guid datasetId,
+            RefreshSchedule schedule)
+        {
+            RefreshScheduleRequest request = new() { Value = schedule };
+            string json = JsonSerializer.Serialize(request, PowerBiApiClient.JsonOptions);
+
+            using HttpRequestMessage httpRequest = new(
+                HttpMethod.Patch,
+                $"groups/{workspaceId}/datasets/{datasetId}/refreshSchedule")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            using HttpResponseMessage response = await httpClient.SendAsync(httpRequest);
+            string body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"Adatmodell frissítési ütemezés módosítása sikertelen ({(int)response.StatusCode}): {body}");
+            }
         }
 
         private static async Task<RefreshSchedule?> TryGetRefreshScheduleAsync(

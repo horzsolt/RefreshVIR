@@ -84,7 +84,7 @@ namespace RefreshVIR
             // 
             // btnPowerBI
             // 
-            this.btnPowerBI.Text = "Power BI";
+            this.btnPowerBI.Text = "PowerBI publikálás";
             this.btnPowerBI.Dock = DockStyle.Fill;
             this.btnPowerBI.Margin = new Padding(30);
             this.btnPowerBI.Font = new Font("Segoe UI", 14, FontStyle.Bold);

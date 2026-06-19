@@ -20,6 +20,7 @@ namespace RefreshVIR
         public JobStatusForm(string connectionString, Dictionary<string, string> jobNames)
         {
             InitializeComponent();
+            ApplicationBrand.Apply(this);
 
             this.connectionString = connectionString;
             this.jobs = jobNames;
