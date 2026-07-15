@@ -394,7 +394,7 @@ namespace RefreshVIR
             return dt;
         }
 
-        private static string FormatHungarianDuration(double totalSeconds)
+        internal static string FormatHungarianDuration(double totalSeconds)
         {
             TimeSpan runtime = TimeSpan.FromSeconds(totalSeconds);
 
@@ -445,10 +445,21 @@ SELECT
     h.run_date,
     h.run_time,
     h.run_duration,
-    h.run_status
+    h.run_status,
+    err.message AS ErrorMessage
 FROM msdb.dbo.sysjobs j
 JOIN msdb.dbo.sysjobhistory h
     ON j.job_id = h.job_id
+OUTER APPLY (
+    SELECT TOP 1 hs.message
+    FROM msdb.dbo.sysjobhistory hs
+    WHERE hs.job_id = h.job_id
+      AND hs.run_date = h.run_date
+      AND hs.run_time = h.run_time
+      AND hs.step_id > 0
+      AND hs.run_status = 0
+    ORDER BY hs.step_id
+) err
 WHERE j.name IN ({string.Join(", ", parameterNames)})
   AND h.step_id = 0
 ORDER BY j.name, h.run_date, h.run_time";
@@ -485,7 +496,10 @@ ORDER BY j.name, h.run_date, h.run_time";
                     JobName = displayName,
                     StartTime = startTime,
                     FinishTime = finishTime,
-                    RunStatus = Convert.ToInt32(reader["run_status"])
+                    RunStatus = Convert.ToInt32(reader["run_status"]),
+                    ErrorMessage = reader["ErrorMessage"] == DBNull.Value
+                        ? null
+                        : reader["ErrorMessage"].ToString()
                 });
             }
 

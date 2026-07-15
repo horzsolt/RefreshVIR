@@ -8,7 +8,8 @@ namespace RefreshVIR
         private DataGridView grid;
         private string connectionString;
         private Dictionary<string, string> jobs;
-        private PictureBox timelinePictureBox;
+        private PictureBox? timelinePictureBox;
+        private JobTimelineGrid? timelineGrid;
         private Panel timelinePanel;
         private SplitContainer splitContainer;
         private List<JobExecution>? cachedTimelineHistory;
@@ -16,6 +17,11 @@ namespace RefreshVIR
         private RadioButton oneWeekRadio;
         private int historyDays = 1;
         private bool suppressHistoryRangeEvents;
+
+        /// <summary>
+        /// Set to false to revert to the generated bitmap timeline chart.
+        /// </summary>
+        private const bool UseTimelineGrid = true;
 
         public JobStatusForm(string connectionString, Dictionary<string, string> jobNames)
         {
@@ -107,21 +113,32 @@ namespace RefreshVIR
             grid.Dock = DockStyle.Top;
             grid.Height = 420;
 
-            timelinePictureBox = new PictureBox
-            {
-                BackColor = Color.White,
-                SizeMode = PictureBoxSizeMode.Normal,
-                Dock = DockStyle.Fill
-            };
-
             timelinePanel = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.DarkGray
             };
 
-            timelinePanel.Controls.Add(timelinePictureBox);
-            timelinePanel.Resize += (s, e) => RenderTimeline();
+            if (UseTimelineGrid)
+            {
+                timelineGrid = new JobTimelineGrid
+                {
+                    Dock = DockStyle.Fill
+                };
+                timelinePanel.Controls.Add(timelineGrid);
+            }
+            else
+            {
+                timelinePictureBox = new PictureBox
+                {
+                    BackColor = Color.White,
+                    SizeMode = PictureBoxSizeMode.Normal,
+                    Dock = DockStyle.Fill
+                };
+
+                timelinePanel.Controls.Add(timelinePictureBox);
+                timelinePanel.Resize += (s, e) => RenderTimelineImage();
+            }
 
             splitContainer =
                 new SplitContainer
@@ -323,6 +340,20 @@ namespace RefreshVIR
         private void RenderTimeline()
         {
             if (cachedTimelineHistory == null)
+                return;
+
+            if (UseTimelineGrid)
+            {
+                timelineGrid?.Bind(cachedTimelineHistory, historyDays);
+                return;
+            }
+
+            RenderTimelineImage();
+        }
+
+        private void RenderTimelineImage()
+        {
+            if (cachedTimelineHistory == null || timelinePictureBox == null)
                 return;
 
             int width = Math.Max(1, timelinePanel.ClientSize.Width);
