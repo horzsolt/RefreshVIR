@@ -68,6 +68,7 @@ namespace RefreshVIR
             _grid.Resize += (_, _) => ApplyHorizontalStretch(_historyDays);
             _grid.CellToolTipTextNeeded += Grid_CellToolTipTextNeeded;
             _toolTip.SetToolTip(_grid, string.Empty);
+            DataGridViewErrorHandler.Attach(_grid, FindForm(), "Idővonal");
             Controls.Add(_grid);
         }
 
@@ -128,13 +129,20 @@ namespace RefreshVIR
                 DateTime? previousSlot = i > 0 ? hourSlots[i - 1] : null;
                 bool isDateHeader = IsDateHeaderColumn(slotStart, historyDays, previousSlot);
 
-                DataGridViewTextBoxColumn timeColumn = new DataGridViewTextBoxColumn
+                TimelineHourColumn timeColumn = new TimelineHourColumn
                 {
                     Name = $"T{i}",
                     HeaderText = FormatTimeColumnHeader(slotStart, historyDays, previousSlot),
                     SortMode = DataGridViewColumnSortMode.NotSortable,
                     AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
-                    MinimumWidth = MinTimeColumnWidth
+                    MinimumWidth = MinTimeColumnWidth,
+                    SlotStart = slotStart,
+                    DefaultCellStyle = new DataGridViewCellStyle
+                    {
+                        BackColor = Color.White,
+                        SelectionBackColor = Color.FromArgb(245, 248, 255),
+                        SelectionForeColor = Color.Black
+                    }
                 };
                 _grid.Columns.Add(timeColumn);
                 ApplyTimeColumnHeaderStyle(timeColumn, isDateHeader);
@@ -183,19 +191,15 @@ namespace RefreshVIR
                         continue;
                     }
 
-                    JobExecution primary = overlapping
-                        .OrderBy(run => StatusPriority(run.RunStatus))
-                        .ThenByDescending(run => run.StartTime)
-                        .First();
-
-                    DataGridViewCell cell = row.Cells[columnIndex + 1];
-                    cell.Style.BackColor = GetStatusColor(primary.RunStatus);
-                    cell.Style.ForeColor = Color.White;
-                    cell.Style.SelectionBackColor = GetStatusColor(primary.RunStatus);
-                    cell.Style.SelectionForeColor = Color.White;
+                    TimelineHourCell cell = (TimelineHourCell)row.Cells[columnIndex + 1];
+                    cell.Value = string.Empty;
+                    cell.Segments = TimelineCellSegmentCalculator.BuildSegments(slotStart, slotEnd, overlapping);
                     cell.ToolTipText = JobExecutionToolTipFormatter.BuildCellToolTip(overlapping);
                 }
             }
+
+            EnableDoubleBuffering(_grid);
+            _grid.Invalidate();
 
             _grid.ResumeLayout();
         }
@@ -339,24 +343,16 @@ namespace RefreshVIR
             }
         }
 
-        private static int StatusPriority(int status) => status switch
+        private static void EnableDoubleBuffering(DataGridView grid)
         {
-            0 => 0,
-            2 => 1,
-            4 => 2,
-            1 => 3,
-            3 => 4,
-            _ => 5
-        };
-
-        private static Color GetStatusColor(int status) => status switch
-        {
-            0 => Color.Firebrick,
-            1 => Color.ForestGreen,
-            2 => Color.DarkOrange,
-            3 => Color.Gray,
-            4 => Color.DodgerBlue,
-            _ => Color.SteelBlue
-        };
+            typeof(DataGridView).InvokeMember(
+                "DoubleBuffered",
+                System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.SetProperty,
+                null,
+                grid,
+                new object[] { true });
+        }
     }
 }

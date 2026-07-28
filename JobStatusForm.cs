@@ -12,11 +12,16 @@ namespace RefreshVIR
         private JobTimelineGrid? timelineGrid;
         private Panel timelinePanel;
         private SplitContainer splitContainer;
+        private Panel loadingOverlay = null!;
+        private Label loadingLabel = null!;
+        private ProgressBar loadingProgressBar = null!;
+        private Button refreshButton = null!;
         private List<JobExecution>? cachedTimelineHistory;
         private RadioButton oneDayRadio;
         private RadioButton oneWeekRadio;
         private int historyDays = 1;
         private bool suppressHistoryRangeEvents;
+        private bool isLoading;
 
         /// <summary>
         /// Set to false to revert to the generated bitmap timeline chart.
@@ -48,13 +53,13 @@ namespace RefreshVIR
             };
             closeButton.Click += (s, e) => this.Close();
 
-            Button refreshButton = new Button
+            refreshButton = new Button
             {
                 Text = "Frissítés",
                 Dock = DockStyle.Top,
                 Height = 40
             };
-            refreshButton.Click += (s, e) => this.RefreshGrid();
+            refreshButton.Click += async (s, e) => await RefreshGridAsync();
 
             Panel historyRangePanel = new Panel
             {
@@ -109,6 +114,8 @@ namespace RefreshVIR
 
             grid.CellClick += Grid_CellClick;
 
+            DataGridViewErrorHandler.Attach(grid, this, "Job státusz");
+
             grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
             grid.Dock = DockStyle.Top;
             grid.Height = 420;
@@ -157,6 +164,9 @@ namespace RefreshVIR
             splitContainer.Panel1.Controls.Add(grid);
             splitContainer.Panel2.Controls.Add(timelinePanel);
 
+            CreateLoadingOverlay();
+
+            Controls.Add(loadingOverlay);
             Controls.Add(splitContainer);
             Controls.Add(closeButton);
             Controls.Add(refreshButton);
@@ -165,9 +175,89 @@ namespace RefreshVIR
             Load += JobStatusForm_Load;
         }
 
-        private void HistoryRange_CheckedChanged(object? sender, EventArgs e)
+        private void CreateLoadingOverlay()
         {
-            if (suppressHistoryRangeEvents)
+            loadingOverlay = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(245, 245, 245),
+                Visible = false
+            };
+
+            TableLayoutPanel layout = new TableLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 1,
+                RowCount = 2,
+                Anchor = AnchorStyles.None
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 420));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            loadingLabel = new Label
+            {
+                Text = "Adatok betöltése...",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 11F, FontStyle.Regular),
+                ForeColor = Color.FromArgb(50, 50, 50),
+                Margin = new Padding(0, 0, 0, 12),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Dock = DockStyle.Fill
+            };
+
+            loadingProgressBar = new ProgressBar
+            {
+                Style = ProgressBarStyle.Continuous,
+                Minimum = 0,
+                Maximum = 100,
+                Value = 0,
+                Height = 22,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0)
+            };
+
+            layout.Controls.Add(loadingLabel, 0, 0);
+            layout.Controls.Add(loadingProgressBar, 0, 1);
+
+            loadingOverlay.Controls.Add(layout);
+            loadingOverlay.Resize += (_, _) => CenterLoadingContent(layout);
+            CenterLoadingContent(layout);
+        }
+
+        private void CenterLoadingContent(Control content)
+        {
+            content.Location = new Point(
+                Math.Max(0, (loadingOverlay.ClientSize.Width - content.Width) / 2),
+                Math.Max(0, (loadingOverlay.ClientSize.Height - content.Height) / 2));
+        }
+
+        private void ShowLoading(string message, int percent)
+        {
+            loadingLabel.Text = message;
+            loadingProgressBar.Value = Math.Clamp(percent, loadingProgressBar.Minimum, loadingProgressBar.Maximum);
+            loadingOverlay.Visible = true;
+            loadingOverlay.BringToFront();
+            refreshButton.Enabled = false;
+            oneDayRadio.Enabled = false;
+            oneWeekRadio.Enabled = false;
+            UseWaitCursor = true;
+            loadingOverlay.Update();
+        }
+
+        private void HideLoading()
+        {
+            loadingOverlay.Visible = false;
+            refreshButton.Enabled = true;
+            oneDayRadio.Enabled = true;
+            oneWeekRadio.Enabled = true;
+            UseWaitCursor = false;
+        }
+
+        private async void HistoryRange_CheckedChanged(object? sender, EventArgs e)
+        {
+            if (suppressHistoryRangeEvents || isLoading)
                 return;
 
             if (sender is not RadioButton radio || !radio.Checked)
@@ -182,50 +272,80 @@ namespace RefreshVIR
             string rangeLabel = historyDays == 1 ? "1 napos adat" : "1 hetes adat";
             SQLUtils.LogAction($"Megjelenítési időszak módosítva: {rangeLabel}");
 
-            ReloadViewData();
+            await ReloadViewDataAsync();
         }
 
-        private void ReloadViewData()
-        {
-            Cursor.Current = Cursors.WaitCursor;
-
-            try
-            {
-                BindGridData();
-                RefreshTimeline();
-            }
-            finally
-            {
-                Cursor.Current = Cursors.Default;
-            }
-        }
+        private Task ReloadViewDataAsync() =>
+            LoadViewDataAsync(configureSplitter: false);
 
         private void JobStatusForm_FormClosed(object? sender, FormClosedEventArgs e)
         {
             SQLUtils.LogAction("Státusz ablak bezárva");
         }
 
-        private void JobStatusForm_Load(object sender, EventArgs e)
+        private async void JobStatusForm_Load(object sender, EventArgs e)
         {
+            suppressHistoryRangeEvents = true;
+
             try
             {
-                suppressHistoryRangeEvents = true;
-                Cursor.Current = Cursors.WaitCursor;
-
-                BindGridData();
-                splitContainer.SplitterDistance = grid.Height;
-                RefreshTimeline();
+                await LoadViewDataAsync(configureSplitter: true);
             }
             finally
             {
                 suppressHistoryRangeEvents = false;
-                Cursor.Current = Cursors.Default;
             }
         }
 
-        private void BindGridData()
+        private async Task LoadViewDataAsync(bool configureSplitter)
         {
-            grid.DataSource = SQLUtils.GetJobDetails(connectionString, jobs, historyDays);
+            if (isLoading)
+                return;
+
+            isLoading = true;
+
+            try
+            {
+                ShowLoading("Job státusz adatok betöltése...", 10);
+                await Task.Yield();
+
+                DataTable jobDetails = await Task.Run(() =>
+                    SQLUtils.GetJobDetails(connectionString, jobs, historyDays));
+
+                ShowLoading("Job státusz adatok megjelenítése...", 40);
+                await Task.Yield();
+                BindGridData(jobDetails);
+
+                if (configureSplitter)
+                    splitContainer.SplitterDistance = grid.Height;
+
+                ShowLoading("Futástörténet betöltése...", 60);
+                await Task.Yield();
+
+                int days = historyDays;
+                List<JobExecution> history = await Task.Run(() =>
+                    SQLUtils.GetJobExecutionHistory(connectionString, jobs, days));
+
+                ShowLoading("Idővonal megjelenítése...", 85);
+                await Task.Yield();
+
+                cachedTimelineHistory = history;
+                RenderTimeline();
+
+                ShowLoading("Kész", 100);
+                await Task.Yield();
+            }
+            finally
+            {
+                HideLoading();
+                isLoading = false;
+            }
+        }
+
+        private void BindGridData(DataTable? jobDetails = null)
+        {
+            grid.DataSource = jobDetails
+                ?? SQLUtils.GetJobDetails(connectionString, jobs, historyDays);
 
             grid.Columns[2].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             grid.Columns[3].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -253,7 +373,7 @@ namespace RefreshVIR
             });
         }
 
-        private void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
+        private async void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
 
@@ -288,7 +408,7 @@ namespace RefreshVIR
                     SQLUtils.StartJob(jobName, connectionString);
                 }
 
-                RefreshGrid();
+                await RefreshGridAsync();
             }
         }
 
@@ -304,37 +424,10 @@ namespace RefreshVIR
             }
         }
 
-        private void RefreshGrid()
+        private async Task RefreshGridAsync()
         {
             SQLUtils.LogAction("Adatok frissítése (Státusz ablak)");
-
-            Cursor.Current = Cursors.WaitCursor;
-
-            try
-            {
-                BindGridData();
-
-                cachedTimelineHistory =
-                    SQLUtils.GetJobExecutionHistory(
-                        connectionString,
-                        jobs,
-                        historyDays);
-                RenderTimeline();
-            }
-            finally
-            {
-                Cursor.Current = Cursors.Default;
-            }
-        }
-
-        private void RefreshTimeline()
-        {
-            cachedTimelineHistory =
-                SQLUtils.GetJobExecutionHistory(
-                    connectionString,
-                    jobs,
-                    historyDays);
-            RenderTimeline();
+            await LoadViewDataAsync(configureSplitter: false);
         }
 
         private void RenderTimeline()
