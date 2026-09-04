@@ -58,6 +58,8 @@ namespace RefreshVIR
                 { "Refresh_Scriptor_2", "Scriptor frissítés 2." },
                 { "Refresh_Scriptor_3", "Scriptor frissítés 3." },
                 { "Refresh_Scriptor_4", "Scriptor frissítés 4." },
+                { "Refresh_Scriptor_Full", "Scriptor teljes frissítés" },
+                { "QAD - Refresh t_xinv_dtbl CHUNK", "QAD t_xinv_dtbl CHUNK frissítés" },
                 { "QAD_VIR_2026_frissites", "QAD 2026 frissítés 1." },
                 { "QAD_VIR_2026_frissites_2", "QAD 2026 frissítés 2." },
                 { "QAD_VIR_2026_frissites_3", "QAD 2026 frissítés 3." },

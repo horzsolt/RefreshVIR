@@ -1,4 +1,4 @@
-namespace RefreshVIR
+﻿namespace RefreshVIR
 {
     public partial class MainForm : Form
     {
@@ -64,6 +64,13 @@ namespace RefreshVIR
             SQLUtils.LogAction("Power BI gomb megnyomva");
             PowerBIPublishForm publishForm = new PowerBIPublishForm();
             publishForm.Show();
+        }
+
+        private void btnElabe_Click(object sender, EventArgs e)
+        {
+            SQLUtils.LogAction("ELABE editor gomb megnyomva");
+            ElabeEditorForm editorForm = new ElabeEditorForm(Configuration.connectionString);
+            editorForm.Show();
         }
     }
 }
