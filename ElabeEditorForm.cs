@@ -18,6 +18,9 @@ namespace RefreshVIR
         private readonly Button _btnNew = new() { Text = "Új", Width = 100, Height = 28 };
         private readonly Button _btnEdit = new() { Text = "Módosít", Width = 100, Height = 28 };
         private readonly Button _btnDelete = new() { Text = "Töröl", Width = 100, Height = 28 };
+        private readonly Button _btnRefresh = new() { Text = "Frissít", Width = 100, Height = 28 };
+        private readonly TextBox _searchBox = new() { Width = 180, Height = 28 };
+        private readonly Button _btnSearch = new() { Text = "Keres", Width = 100, Height = 28 };
         private readonly Button _btnSave = new() { Text = "Rögzít", Width = 100, Height = 28, Visible = false, CausesValidation = false };
         private readonly Button _btnCancel = new() { Text = "Elvet", Width = 100, Height = 28, Visible = false, CausesValidation = false };
 
@@ -33,6 +36,8 @@ namespace RefreshVIR
         private bool _invalidValueHandled;
         private bool _cellValidationFailed;
         private bool _suppressCellValidating;
+        private string _lastSearchTerm = string.Empty;
+        private int _lastSearchHitIndex = -1;
 
         public ElabeEditorForm(string connectionString)
         {
@@ -59,6 +64,7 @@ namespace RefreshVIR
                 {
                     RequestClose();
                     e.Handled = true;
+                    e.SuppressKeyPress = true;
                 }
             };
 
@@ -73,6 +79,17 @@ namespace RefreshVIR
             _btnNew.Click += (_, _) => StartInsert();
             _btnEdit.Click += (_, _) => StartEdit();
             _btnDelete.Click += async (_, _) => await DeleteCurrentAsync();
+            _btnRefresh.Click += async (_, _) => await RefreshDataAsync();
+            _searchBox.Margin = new Padding(16, 3, 3, 3);
+            _searchBox.KeyDown += (_, e) =>
+            {
+                if (e.KeyCode != Keys.Enter)
+                    return;
+                SearchFromStart();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            };
+            _btnSearch.Click += (_, _) => SearchFromStart();
             _btnSave.MouseDown += async (_, e) =>
             {
                 if (e.Button == MouseButtons.Left)
@@ -83,7 +100,7 @@ namespace RefreshVIR
                 if (e.Button == MouseButtons.Left)
                     CancelEdit();
             };
-            toolbar.Controls.AddRange([_btnNew, _btnEdit, _btnDelete, _btnSave, _btnCancel]);
+            toolbar.Controls.AddRange([_btnNew, _btnEdit, _btnDelete, _btnRefresh, _searchBox, _btnSearch, _btnSave, _btnCancel]);
 
             _grid.Dock = DockStyle.Fill;
             _grid.ReadOnly = true;
@@ -125,6 +142,18 @@ namespace RefreshVIR
             Controls.Add(toolbar);
         }
 
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.F3)
+            {
+                if (_mode == Mode.Browse)
+                    FindNext();
+                return true;
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         protected override void WndProc(ref Message m)
         {
             const int WmClose = 0x0010;
@@ -142,6 +171,7 @@ namespace RefreshVIR
             {
                 _table = await Task.Run(LoadTable);
                 _binding.DataSource = _table;
+                _lastSearchHitIndex = -1;
             }
             catch (Exception ex)
             {
@@ -167,6 +197,163 @@ namespace RefreshVIR
                 id.AllowDBNull = true;
             }
             return table;
+        }
+
+        private async Task RefreshDataAsync()
+        {
+            if (_mode != Mode.Browse)
+                return;
+
+            int? selectedId = null;
+            if (TryGetCurrentRow(out DataRow row) && row["ID"] is int id)
+                selectedId = id;
+
+            SQLUtils.LogAction("ELABE adatok frissítve");
+            await LoadDataAsync();
+            if (selectedId is int keepId)
+                TrySelectRowById(keepId);
+        }
+
+        private void TrySelectRowById(int id)
+        {
+            for (int i = 0; i < _grid.Rows.Count; i++)
+            {
+                if (GetDataRow(i)?["ID"] is not int rowId || rowId != id)
+                    continue;
+
+                SelectGridRow(i);
+                return;
+            }
+        }
+
+        private void SelectGridRow(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= _grid.Rows.Count)
+                return;
+
+            _syncingSelection = true;
+            try
+            {
+                _grid.ClearSelection();
+                _grid.Rows[rowIndex].Selected = true;
+                if (_grid.Rows[rowIndex].Cells.Count > 0)
+                    _grid.CurrentCell = _grid.Rows[rowIndex].Cells[0];
+
+                try
+                {
+                    _grid.FirstDisplayedScrollingRowIndex = rowIndex;
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                _grid.Focus();
+            }
+            finally
+            {
+                _syncingSelection = false;
+            }
+        }
+
+        private void SearchFromStart()
+        {
+            if (_mode != Mode.Browse)
+                return;
+
+            string term = _searchBox.Text.Trim();
+            if (term.Length == 0)
+            {
+                MessageBox.Show(this, "Adja meg a keresett szöveget.", "Keresés",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _searchBox.Focus();
+                return;
+            }
+
+            _lastSearchTerm = term;
+            if (!TryFindHit(0, wrap: false, out int hit))
+            {
+                _lastSearchHitIndex = -1;
+                MessageBox.Show(this, "Nincs találat.", "Keresés",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _searchBox.Focus();
+                return;
+            }
+
+            FocusSearchHit(hit);
+            SQLUtils.LogAction($"ELABE keresés: {_lastSearchTerm}");
+        }
+
+        private void FindNext()
+        {
+            if (_mode != Mode.Browse || _lastSearchTerm.Length == 0)
+                return;
+            if (_lastSearchHitIndex < 0 || _lastSearchHitIndex >= _grid.Rows.Count)
+                return;
+
+            int start = _lastSearchHitIndex + 1;
+            if (!TryFindHit(start, wrap: true, out int hit) || hit == _lastSearchHitIndex)
+            {
+                MessageBox.Show(this, "Nincs további találat.", "Keresés",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            FocusSearchHit(hit);
+        }
+
+        private bool TryFindHit(int startIndex, bool wrap, out int hitIndex)
+        {
+            hitIndex = -1;
+            int count = _grid.Rows.Count;
+            if (count == 0)
+                return false;
+
+            int visits = wrap ? count : count - startIndex;
+            if (visits <= 0)
+                return false;
+
+            for (int n = 0; n < visits; n++)
+            {
+                int rowIndex = wrap ? (startIndex + n) % count : startIndex + n;
+                DataRow? row = GetDataRow(rowIndex);
+                if (row == null || !RowContains(row, _lastSearchTerm))
+                    continue;
+
+                hitIndex = rowIndex;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool RowContains(DataRow row, string term)
+        {
+            foreach (DataColumn column in row.Table.Columns)
+            {
+                object value = row[column];
+                if (value is DBNull)
+                    continue;
+
+                if (TextContains(Convert.ToString(value, CultureInfo.CurrentCulture), term))
+                    return true;
+
+                if (TextContains(Convert.ToString(value, CultureInfo.InvariantCulture), term))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TextContains(string? text, string term)
+        {
+            return !string.IsNullOrEmpty(text)
+                && text.IndexOf(term, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        }
+
+        private void FocusSearchHit(int rowIndex)
+        {
+            _lastSearchHitIndex = rowIndex;
+            SelectGridRow(rowIndex);
         }
 
         private void ConfigureColumns()
@@ -1121,6 +1308,9 @@ namespace RefreshVIR
             _btnNew.Visible = !editing;
             _btnEdit.Visible = !editing;
             _btnDelete.Visible = !editing;
+            _btnRefresh.Visible = !editing;
+            _searchBox.Visible = !editing;
+            _btnSearch.Visible = !editing;
             _btnSave.Visible = editing;
             _btnCancel.Visible = editing;
         }
@@ -1130,6 +1320,9 @@ namespace RefreshVIR
             _btnNew.Enabled = !busy;
             _btnEdit.Enabled = !busy;
             _btnDelete.Enabled = !busy;
+            _btnRefresh.Enabled = !busy;
+            _searchBox.Enabled = !busy;
+            _btnSearch.Enabled = !busy;
         }
 
         private bool TryGetCurrentRow(out DataRow row)

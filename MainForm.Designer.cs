@@ -1,197 +1,187 @@
-﻿using static System.Windows.Forms.Button;
-
-namespace RefreshVIR
+﻿namespace RefreshVIR
 {
     partial class MainForm
     {
-        /// <summary>
-        ///  Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
-        private System.Windows.Forms.Button btnRefreshGL;
-        private System.Windows.Forms.Button btnPowerBI;
-        private System.Windows.Forms.Button btnElabe;
-        private System.Windows.Forms.Button btnExit;
-        private System.Windows.Forms.ProgressBar progressBar1;
-        private System.Windows.Forms.TableLayoutPanel mainLayout;
-        private System.Windows.Forms.Label titleLabel;
-        private System.Windows.Forms.ToolTip toolTip = new System.Windows.Forms.ToolTip();
+        private TableLayoutPanel mainLayout;
+        private Panel headerPanel;
+        private PictureBox logoBox;
+        private Label titleLabel;
+        private Label sessionLabel;
+        private Button btnExit;
+        private TableLayoutPanel contentLayout;
+        private TableLayoutPanel cardsLayout;
+        private DashboardCard cardStatus;
+        private DashboardCard cardRefreshGL;
+        private DashboardCard cardPowerBI;
+        private DashboardCard cardElabe;
+        private ProgressBar progressBar1;
 
-        /// <summary>
-        ///  Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
-            {
                 components.Dispose();
-            }
             base.Dispose(disposing);
         }
 
         #region Windows Form Designer generated code
 
-        /// <summary>
-        ///  Required method for Designer support - do not modify
-        ///  the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
-            this.btnRefreshGL = new Button();
-            this.btnPowerBI = new Button();
-            this.btnElabe = new Button();
-            this.btnExit = new Button();
-            this.button1 = new Button();
-            this.progressBar1 = new ProgressBar();
-            this.mainLayout = new TableLayoutPanel();
-            this.titleLabel = new Label();
+            logoBox = new PictureBox();
+            titleLabel = new Label();
+            sessionLabel = new Label();
+            btnExit = new Button();
+            headerPanel = new Panel();
+            cardStatus = new DashboardCard("Státusz", "Adatfrissítő jobok állapota, indítás és leállítás");
+            cardRefreshGL = new DashboardCard("Főkönyv", "Főkönyvi adatok kézi frissítése");
+            cardPowerBI = new DashboardCard("Power BI", "Riport publikálása a felhőbe");
+            cardElabe = new DashboardCard("ELABE editor", "ELABE tábla szerkesztése");
+            cardsLayout = new TableLayoutPanel();
+            contentLayout = new TableLayoutPanel();
+            progressBar1 = new ProgressBar();
+            mainLayout = new TableLayoutPanel();
 
-            this.mainLayout.SuspendLayout();
-            this.SuspendLayout();
+            headerPanel.SuspendLayout();
+            cardsLayout.SuspendLayout();
+            contentLayout.SuspendLayout();
+            mainLayout.SuspendLayout();
+            SuspendLayout();
 
-            // 
-            // MainForm
-            // 
-            this.AutoScaleMode = AutoScaleMode.Font;
-            this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.KeyPreview = true;
+            AutoScaleMode = AutoScaleMode.Font;
+            WindowState = FormWindowState.Maximized;
+            FormBorderStyle = FormBorderStyle.None;
+            StartPosition = FormStartPosition.CenterScreen;
+            KeyPreview = true;
+            BackColor = Color.FromArgb(245, 246, 248);
+            DoubleBuffered = true;
 
-            // 
-            // titleLabel
-            // 
-            this.titleLabel = new Label();
-            this.titleLabel.Text = "Controlling Vezérlőpult";
-            this.titleLabel.Dock = DockStyle.Fill;
-            this.titleLabel.TextAlign = ContentAlignment.MiddleCenter;
-            this.titleLabel.Font = new Font("Segoe UI", 26, FontStyle.Bold);
-            this.titleLabel.Height = 100;
+            // header
+            headerPanel.Dock = DockStyle.Fill;
+            headerPanel.BackColor = Color.FromArgb(6, 110, 118);
+            headerPanel.Padding = new Padding(28, 14, 20, 14);
 
-            // 
-            // btnRefreshGL
-            // 
-            this.btnRefreshGL.Text = "Főkönyv";
-            this.btnRefreshGL.Dock = DockStyle.Fill;
-            this.btnRefreshGL.Margin = new Padding(30);
-            this.btnRefreshGL.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-            this.btnRefreshGL.BackColor = Color.SteelBlue;
-            this.btnRefreshGL.ForeColor = Color.White;
-            this.btnRefreshGL.FlatStyle = FlatStyle.Flat;
-            this.btnRefreshGL.Cursor = Cursors.Hand;
-            this.btnRefreshGL.Click += btnRefreshGL_Click;
-            toolTip.SetToolTip(this.btnRefreshGL, "Főkönyvi adatok kézi frissítése, jobok státusza");
+            logoBox.Size = new Size(400, 68);
+            logoBox.Location = new Point(24, 12);
+            logoBox.SizeMode = PictureBoxSizeMode.Zoom;
+            logoBox.BackColor = Color.Transparent;
+            logoBox.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Bottom;
+            TryLoadLogo();
 
-            // 
-            // btnPowerBI
-            // 
-            this.btnPowerBI.Text = "PowerBI publikálás";
-            this.btnPowerBI.Dock = DockStyle.Fill;
-            this.btnPowerBI.Margin = new Padding(30);
-            this.btnPowerBI.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-            this.btnPowerBI.BackColor = Color.MediumPurple;
-            this.btnPowerBI.ForeColor = Color.White;
-            this.btnPowerBI.FlatStyle = FlatStyle.Flat;
-            this.btnPowerBI.Cursor = Cursors.Hand;
-            this.btnPowerBI.Click += btnPowerBI_Click;
-            toolTip.SetToolTip(this.btnPowerBI, "Power BI riport publikálása a felhőbe");
+            titleLabel.AutoSize = true;
+            titleLabel.Location = new Point(440, 26);
+            titleLabel.Font = new Font("Segoe UI", 18, FontStyle.Bold);
+            titleLabel.ForeColor = Color.White;
+            titleLabel.BackColor = Color.Transparent;
+            titleLabel.Text = "Controlling Vezérlőpult";
+            titleLabel.Anchor = AnchorStyles.Left | AnchorStyles.Top;
 
-            // 
-            // btnElabe
-            // 
-            this.btnElabe.Text = "ELABE editor";
-            this.btnElabe.Dock = DockStyle.Fill;
-            this.btnElabe.Margin = new Padding(30);
-            this.btnElabe.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-            this.btnElabe.BackColor = Color.Teal;
-            this.btnElabe.ForeColor = Color.White;
-            this.btnElabe.FlatStyle = FlatStyle.Flat;
-            this.btnElabe.Cursor = Cursors.Hand;
-            this.btnElabe.Click += btnElabe_Click;
-            toolTip.SetToolTip(this.btnElabe, "t_e_elabe_2026 tábla szerkesztése");
+            sessionLabel.AutoSize = false;
+            sessionLabel.Size = new Size(360, 28);
+            sessionLabel.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+            sessionLabel.TextAlign = ContentAlignment.MiddleRight;
+            sessionLabel.Font = new Font("Segoe UI", 9.5f);
+            sessionLabel.ForeColor = Color.FromArgb(220, 222, 226);
+            sessionLabel.BackColor = Color.Transparent;
 
-            // 
-            // button1 (Status)
-            // 
-            this.button1.Text = "Státusz";
-            this.button1.Dock = DockStyle.Fill;
-            this.button1.Margin = new Padding(30);
-            this.button1.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-            this.button1.BackColor = Color.DarkSlateGray;
-            this.button1.ForeColor = Color.White;
-            this.button1.FlatStyle = FlatStyle.Flat;
-            this.button1.Cursor = Cursors.Hand;
-            this.button1.Click += button1_Click;
-            toolTip.SetToolTip(this.button1, "Összes adatfrissítő job státusza, indítás, leállítás");
+            btnExit.Text = "Kilépés";
+            btnExit.Size = new Size(100, 34);
+            btnExit.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+            btnExit.FlatStyle = FlatStyle.Flat;
+            btnExit.FlatAppearance.BorderColor = Color.FromArgb(40, 140, 148);
+            btnExit.Font = new Font("Segoe UI", 9.5f);
+            btnExit.ForeColor = Color.White;
+            btnExit.BackColor = Color.FromArgb(6, 110, 118);
+            btnExit.Cursor = Cursors.Hand;
+            btnExit.Click += btnExit_Click;
 
-            // 
-            // btnExit
-            // 
-            this.btnExit.Text = "Exit";
-            this.btnExit.Dock = DockStyle.Fill;
-            this.btnExit.Margin = new Padding(30);
-            this.btnExit.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-            this.btnExit.BackColor = Color.Firebrick;
-            this.btnExit.ForeColor = Color.White;
-            this.btnExit.FlatStyle = FlatStyle.Flat;
-            this.btnExit.Cursor = Cursors.Hand;
-            this.btnExit.Click += btnExit_Click;
+            headerPanel.Controls.Add(logoBox);
+            headerPanel.Controls.Add(titleLabel);
+            headerPanel.Controls.Add(sessionLabel);
+            headerPanel.Controls.Add(btnExit);
+            headerPanel.Resize += (_, _) => LayoutHeader();
 
-            // 
-            // progressBar1
-            // 
-            this.progressBar1.Dock = DockStyle.Bottom;
-            this.progressBar1.Height = 25;
-            this.progressBar1.Style = ProgressBarStyle.Marquee;
-            this.progressBar1.Visible = false;
-            this.progressBar1.MarqueeAnimationSpeed = 30;
+            // cards
+            cardsLayout.ColumnCount = 2;
+            cardsLayout.RowCount = 2;
+            cardsLayout.Dock = DockStyle.Fill;
+            cardsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            cardsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            cardsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            cardsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            cardStatus.Dock = DockStyle.Fill;
+            cardRefreshGL.Dock = DockStyle.Fill;
+            cardPowerBI.Dock = DockStyle.Fill;
+            cardElabe.Dock = DockStyle.Fill;
+            cardStatus.Click += button1_Click;
+            cardRefreshGL.Click += btnRefreshGL_Click;
+            cardPowerBI.Click += btnPowerBI_Click;
+            cardElabe.Click += btnElabe_Click;
+            cardsLayout.Controls.Add(cardStatus, 0, 0);
+            cardsLayout.Controls.Add(cardRefreshGL, 1, 0);
+            cardsLayout.Controls.Add(cardPowerBI, 0, 1);
+            cardsLayout.Controls.Add(cardElabe, 1, 1);
 
-            // 
-            // mainLayout
-            // 
-            this.mainLayout.ColumnCount = 5;
-            this.mainLayout.RowCount = 3;
-            this.mainLayout.Dock = DockStyle.Fill;
-            this.mainLayout.BackColor = Color.White;
-            this.mainLayout.Padding = new Padding(80);
+            contentLayout.Dock = DockStyle.Fill;
+            contentLayout.BackColor = Color.FromArgb(245, 246, 248);
+            contentLayout.ColumnCount = 3;
+            contentLayout.RowCount = 3;
+            contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1280F));
+            contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 640F));
+            contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            contentLayout.Controls.Add(cardsLayout, 1, 1);
 
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            this.mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            progressBar1.Dock = DockStyle.Fill;
+            progressBar1.Style = ProgressBarStyle.Marquee;
+            progressBar1.Visible = false;
+            progressBar1.MarqueeAnimationSpeed = 30;
 
-            this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120F));   // title
-            this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));   // buttons
-            this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));   // progress
+            mainLayout.Dock = DockStyle.Fill;
+            mainLayout.ColumnCount = 1;
+            mainLayout.RowCount = 3;
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
+            mainLayout.Controls.Add(headerPanel, 0, 0);
+            mainLayout.Controls.Add(contentLayout, 0, 1);
+            mainLayout.Controls.Add(progressBar1, 0, 2);
+            mainLayout.Paint += (_, e) =>
+            {
+                using var pen = new Pen(Color.FromArgb(4, 88, 94));
+                e.Graphics.DrawLine(pen, 0, 91, mainLayout.Width, 91);
+            };
 
-            // 
-            // Layout placement
-            // 
-            this.mainLayout.Controls.Add(this.titleLabel, 0, 0);
-            this.mainLayout.SetColumnSpan(this.titleLabel, 5);
+            Controls.Add(mainLayout);
 
-            this.mainLayout.Controls.Add(this.button1, 0, 1);
-            this.mainLayout.Controls.Add(this.btnRefreshGL, 1, 1);
-            this.mainLayout.Controls.Add(this.btnPowerBI, 2, 1);
-            this.mainLayout.Controls.Add(this.btnElabe, 3, 1);
-            this.mainLayout.Controls.Add(this.btnExit, 4, 1);
-
-            this.mainLayout.Controls.Add(this.progressBar1, 0, 2);
-            this.mainLayout.SetColumnSpan(this.progressBar1, 5);
-
-            // 
-            // MainForm controls
-            // 
-            this.Controls.Add(this.mainLayout);
-
-            this.mainLayout.ResumeLayout(false);
-            this.ResumeLayout(false);
+            headerPanel.ResumeLayout(false);
+            cardsLayout.ResumeLayout(false);
+            contentLayout.ResumeLayout(false);
+            mainLayout.ResumeLayout(false);
+            ResumeLayout(false);
         }
 
         #endregion
 
-        private Button button1;
+        private void LayoutHeader()
+        {
+            btnExit.Location = new Point(headerPanel.ClientSize.Width - btnExit.Width - 20, 23);
+            sessionLabel.Location = new Point(btnExit.Left - sessionLabel.Width - 16, 26);
+        }
+
+        private void TryLoadLogo()
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, "gw.png");
+            if (!File.Exists(path))
+            {
+                logoBox.Visible = false;
+                titleLabel.Location = new Point(28, 22);
+                return;
+            }
+
+            logoBox.Image = Image.FromFile(path);
+        }
     }
 }

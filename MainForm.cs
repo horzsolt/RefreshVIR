@@ -8,6 +8,8 @@
             InitializeComponent();
             ApplicationBrand.Apply(this);
             ApplyCaption();
+            LayoutHeader();
+            Load += (_, _) => LayoutHeader();
             this.KeyDown += MainForm_KeyDown;
             this.FormClosed += MainForm_FormClosed;
         }
@@ -26,8 +28,7 @@
                 $"{Environment.UserDomainName}-{Environment.UserName} [{server}]";
 
             this.Text = caption;
-            this.titleLabel.Text =
-                $"Controlling Vezérlőpult{Environment.NewLine}{caption}";
+            sessionLabel.Text = caption;
         }
 
         private void MainForm_KeyDown(object sender, KeyEventArgs e)
