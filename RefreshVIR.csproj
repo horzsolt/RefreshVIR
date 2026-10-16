@@ -10,6 +10,27 @@
     <PackageIcon>gw.png</PackageIcon>
   </PropertyGroup>
 
+  <!-- Keep the assembly version aligned with the ClickOnce publish profile (e.g. 1.0.0.7). -->
+  <Target Name="ApplyClickOnceVersionToAssembly"
+          BeforeTargets="GenerateAssemblyInfo;GetAssemblyVersion;CoreGenerateAssemblyInfo"
+          Condition="Exists('$(MSBuildProjectDirectory)\Properties\PublishProfiles\ClickOnceProfile.pubxml')">
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Properties\PublishProfiles\ClickOnceProfile.pubxml"
+             Query="/Project/PropertyGroup/ApplicationVersion/text()">
+      <Output TaskParameter="Result" PropertyName="_ClickOnceApplicationVersion" />
+    </XmlPeek>
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Properties\PublishProfiles\ClickOnceProfile.pubxml"
+             Query="/Project/PropertyGroup/ApplicationRevision/text()">
+      <Output TaskParameter="Result" PropertyName="_ClickOnceApplicationRevision" />
+    </XmlPeek>
+    <PropertyGroup Condition="'$(_ClickOnceApplicationVersion)' != '' and '$(_ClickOnceApplicationRevision)' != ''">
+      <_ClickOnceVersionBase>$([System.String]::Copy('$(_ClickOnceApplicationVersion)').Replace('*', '').TrimEnd('.'))</_ClickOnceVersionBase>
+      <Version>$(_ClickOnceVersionBase).$(_ClickOnceApplicationRevision)</Version>
+      <AssemblyVersion>$(Version)</AssemblyVersion>
+      <FileVersion>$(Version)</FileVersion>
+      <InformationalVersion>$(Version)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
+
   <ItemGroup>
     <Content Include="gw.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

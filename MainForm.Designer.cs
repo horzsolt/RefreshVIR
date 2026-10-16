@@ -7,6 +7,7 @@
         private Panel headerPanel;
         private PictureBox logoBox;
         private Label titleLabel;
+        private Label versionLabel;
         private Label sessionLabel;
         private Button btnExit;
         private TableLayoutPanel contentLayout;
@@ -30,6 +31,7 @@
         {
             logoBox = new PictureBox();
             titleLabel = new Label();
+            versionLabel = new Label();
             sessionLabel = new Label();
             btnExit = new Button();
             headerPanel = new Panel();
@@ -76,27 +78,38 @@
             titleLabel.Text = "Controlling Vezérlőpult";
             titleLabel.Anchor = AnchorStyles.Left | AnchorStyles.Top;
 
+            versionLabel.AutoSize = true;
+            versionLabel.Font = new Font("Segoe UI", 13f);
+            versionLabel.ForeColor = Color.Black;
+            versionLabel.BackColor = Color.Transparent;
+            versionLabel.Text = AppVersion.GetDisplayString();
+            versionLabel.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+
             sessionLabel.AutoSize = false;
-            sessionLabel.Size = new Size(360, 28);
+            sessionLabel.Size = new Size(420, 34);
             sessionLabel.Anchor = AnchorStyles.Right | AnchorStyles.Top;
             sessionLabel.TextAlign = ContentAlignment.MiddleRight;
-            sessionLabel.Font = new Font("Segoe UI", 9.5f);
-            sessionLabel.ForeColor = Color.FromArgb(220, 222, 226);
+            sessionLabel.Font = new Font("Segoe UI", 13f);
+            sessionLabel.ForeColor = Color.Black;
             sessionLabel.BackColor = Color.Transparent;
 
             btnExit.Text = "Kilépés";
-            btnExit.Size = new Size(100, 34);
+            btnExit.Size = new Size(200, 52);
             btnExit.Anchor = AnchorStyles.Right | AnchorStyles.Top;
             btnExit.FlatStyle = FlatStyle.Flat;
-            btnExit.FlatAppearance.BorderColor = Color.FromArgb(40, 140, 148);
-            btnExit.Font = new Font("Segoe UI", 9.5f);
+            btnExit.FlatAppearance.BorderSize = 1;
+            btnExit.FlatAppearance.BorderColor = Color.FromArgb(90, 96, 104);
+            btnExit.FlatAppearance.MouseOverBackColor = Color.FromArgb(55, 60, 66);
+            btnExit.FlatAppearance.MouseDownBackColor = Color.FromArgb(40, 44, 48);
+            btnExit.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
             btnExit.ForeColor = Color.White;
-            btnExit.BackColor = Color.FromArgb(6, 110, 118);
+            btnExit.BackColor = Color.FromArgb(75, 80, 88);
             btnExit.Cursor = Cursors.Hand;
             btnExit.Click += btnExit_Click;
 
             headerPanel.Controls.Add(logoBox);
             headerPanel.Controls.Add(titleLabel);
+            headerPanel.Controls.Add(versionLabel);
             headerPanel.Controls.Add(sessionLabel);
             headerPanel.Controls.Add(btnExit);
             headerPanel.Resize += (_, _) => LayoutHeader();
@@ -167,8 +180,15 @@
 
         private void LayoutHeader()
         {
-            btnExit.Location = new Point(headerPanel.ClientSize.Width - btnExit.Width - 20, 23);
-            sessionLabel.Location = new Point(btnExit.Left - sessionLabel.Width - 16, 26);
+            int exitTop = Math.Max(0, (headerPanel.ClientSize.Height - btnExit.Height) / 2);
+            btnExit.Location = new Point(headerPanel.ClientSize.Width - btnExit.Width - 20, exitTop);
+            sessionLabel.Location = new Point(
+                btnExit.Left - sessionLabel.Width - 16,
+                exitTop + (btnExit.Height - sessionLabel.Height) / 2);
+
+            versionLabel.Location = new Point(
+                titleLabel.Right + 14,
+                titleLabel.Top + Math.Max(0, (titleLabel.Height - versionLabel.Height) / 2) + 4);
         }
 
         private void TryLoadLogo()

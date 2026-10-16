@@ -1,4 +1,4 @@
-using Microsoft.Identity.Client;
+﻿using Microsoft.Identity.Client;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -89,8 +89,76 @@ namespace RefreshVIR
             Dictionary<string, string>? context = null,
             string? responseBody = null,
             int? httpStatusCode = null,
-            Exception? innerException = null) =>
-            new(message, context, responseBody, httpStatusCode, innerException);
+            Exception? innerException = null)
+        {
+            string? apiErrorCode = TryExtractErrorCode(responseBody);
+            string enrichedMessage = message;
+
+            if (!string.IsNullOrWhiteSpace(apiErrorCode))
+            {
+                enrichedMessage = $"{message}: {apiErrorCode}";
+
+                if (string.Equals(
+                        apiErrorCode,
+                        "Alm_InvalidRequest_WorkspaceHasNoCapacity",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    enrichedMessage +=
+                        " — A munkaterület nincs Premium/Fabric kapacitáshoz rendelve, " +
+                        "ezért nem csatolható telepítési folyamathoz (app frissítés).";
+                }
+            }
+
+            return new DetailedApplicationException(
+                enrichedMessage,
+                context,
+                responseBody,
+                httpStatusCode,
+                innerException);
+        }
+
+        internal static string? TryExtractErrorCode(string? responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return null;
+
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(responseBody);
+                JsonElement root = document.RootElement;
+
+                if (root.TryGetProperty("error", out JsonElement error))
+                {
+                    if (error.TryGetProperty("code", out JsonElement code)
+                        && code.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(code.GetString()))
+                    {
+                        return code.GetString();
+                    }
+
+                    if (error.TryGetProperty("pbi.error", out JsonElement pbiError)
+                        && pbiError.TryGetProperty("code", out JsonElement pbiCode)
+                        && pbiCode.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(pbiCode.GetString()))
+                    {
+                        return pbiCode.GetString();
+                    }
+                }
+
+                if (root.TryGetProperty("code", out JsonElement rootCode)
+                    && rootCode.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(rootCode.GetString()))
+                {
+                    return rootCode.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+
+            return null;
+        }
 
         internal static string FormatReportType(string? reportType) =>
             reportType switch

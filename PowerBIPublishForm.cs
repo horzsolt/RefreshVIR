@@ -1,4 +1,4 @@
-namespace RefreshVIR
+﻿namespace RefreshVIR
 {
     public partial class PowerBIPublishForm : Form
     {
@@ -391,12 +391,12 @@ namespace RefreshVIR
             }
             catch (Exception ex)
             {
-                PowerBiActionLogger.Log(
+                PowerBiActionLogger.LogFailure(
                     "Power BI riport frissítés sikertelen",
+                    ex,
                     request.Workspace,
                     request.ReportName,
-                    request.PbixPath,
-                    $"hiba={ex.Message}");
+                    request.PbixPath);
 
                 ShowErrorMessage(
                     ex.Message,
@@ -450,12 +450,12 @@ namespace RefreshVIR
             }
             catch (Exception appEx)
             {
-                PowerBiActionLogger.Log(
+                PowerBiActionLogger.LogFailure(
                     "Power BI app frissítés sikertelen",
+                    appEx,
                     request.Workspace,
                     request.ReportName,
-                    request.PbixPath,
-                    $"hiba={appEx.Message}");
+                    request.PbixPath);
 
                 ShowErrorMessage(
                     appEx.Message,
